@@ -612,6 +612,10 @@ async function processTarget(
     previous.last_content_length ??
     metadata.content_length;
 
+  metadata.previous_last_modified =
+    previous.last_modified ||
+    null;
+
   state.targets[id] = {
     ...previous,
     target,
