@@ -42,6 +42,24 @@ function getPlatformDisplayName(title, platform) {
   return names[platform] || platform;
 }
 
+function getBackgroundPlatformDisplayName(platform) {
+  const names = {
+    ps4: 'PS4',
+    xboxone: 'Xbox One',
+    pcros: 'PC Legacy',
+    ps5: 'PS5',
+    xboxsx: 'Xbox Series X|S',
+    pcrosalt: 'PC Enhanced',
+    ps6: 'PS6'
+  };
+
+  return (
+    names[
+      String(platform).toLowerCase()
+    ] || platform
+  );
+}
+
 function formatDetectionTime(value) {
   if (!value) {
     return 'unknown';
@@ -53,33 +71,54 @@ function formatDetectionTime(value) {
     return String(value);
   }
 
-  return date.toLocaleTimeString('fr-FR', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-    timeZone: 'Europe/Paris'
-  });
+  return date.toLocaleTimeString(
+    'fr-FR',
+    {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+      timeZone: 'Europe/Paris'
+    }
+  );
 }
 
 function formatSize(value) {
-  return Number.isFinite(Number(value))
+  return Number.isFinite(
+    Number(value)
+  )
     ? Number(value)
     : null;
 }
 
-function formatSizeLine(previousSize, currentSize) {
-  const previous = formatSize(previousSize);
-  const current = formatSize(currentSize);
+function formatSizeLine(
+  previousSize,
+  currentSize
+) {
+  const previous =
+    formatSize(previousSize);
 
-  if (previous === null || current === null) {
+  const current =
+    formatSize(currentSize);
+
+  if (
+    previous === null ||
+    current === null
+  ) {
     return null;
   }
 
-  const difference = current - previous;
-  const sign = difference > 0 ? '+' : '';
+  const difference =
+    current - previous;
 
-  return `Size: ${previous} → ${current} bytes (${sign}${difference})`;
+  const sign =
+    difference >= 0
+      ? '+'
+      : '';
+
+  return (
+    `Size: ${previous} → ${current} bytes (${sign}${difference})`
+  );
 }
 
 async function discordRequest(
@@ -94,7 +133,8 @@ async function discordRequest(
   }
 
   const timeout =
-    options.timeout ?? DEFAULT_TIMEOUT;
+    options.timeout ??
+    DEFAULT_TIMEOUT;
 
   const controller =
     new AbortController();
@@ -282,14 +322,11 @@ function formatUpdate({
 
   return [
     `**Tunables ${displayTitle} ${displayPlatform} Updated at ${formatDetectionTime(detectedAt)}**`,
-
     `Last modified: \`${lastModified || 'unknown'}\``,
-
     formatSizeLine(
       previousSize,
       currentSize
     ),
-
     `Changes: +${counts.added || 0} ~${counts.changed || 0} -${counts.removed || 0}`
   ]
     .filter(Boolean)
@@ -315,9 +352,7 @@ function formatFirstSeen({
 
   return [
     `**Tunables ${displayTitle} ${displayPlatform} First seen at ${formatDetectionTime(detectedAt)}**`,
-
     `Last modified: \`${lastModified || 'unknown'}\``,
-
     formatSizeLine(
       previousSize,
       currentSize
@@ -344,8 +379,89 @@ function formatRecovery({
 
   return [
     `**Tunables ${displayTitle} ${displayPlatform} Available Again at ${formatDetectionTime(detectedAt)}**`,
-
     `Last modified: \`${lastModified || 'unknown'}\``
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function formatBackgroundNewBuild({
+  title,
+  platform,
+  build,
+  previousBuild
+}) {
+  const displayTitle =
+    getTitleDisplayName(title);
+
+  const displayPlatform =
+    getBackgroundPlatformDisplayName(
+      platform
+    );
+
+  return [
+    `**New ${displayTitle} ${displayPlatform} Build detected**`,
+    `${build} (previous ${previousBuild})`
+  ].join('\n');
+}
+
+function formatBackgroundFirstSeen({
+  title,
+  platform,
+  detectedAt,
+  lastModified,
+  build,
+  previousSize,
+  currentSize
+}) {
+  const displayTitle =
+    getTitleDisplayName(title);
+
+  const displayPlatform =
+    getBackgroundPlatformDisplayName(
+      platform
+    );
+
+  return [
+    `**Background Script ${displayTitle} ${displayPlatform} First seen at ${formatDetectionTime(detectedAt)}**`,
+    `Last modified: \`${lastModified || 'unknown'}\``,
+    `Build: ${build}`,
+    formatSizeLine(
+      previousSize,
+      currentSize
+    )
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function formatBackgroundUpdated({
+  title,
+  platform,
+  detectedAt,
+  lastModified,
+  previousLastModified,
+  build,
+  previousSize,
+  currentSize
+}) {
+  const displayTitle =
+    getTitleDisplayName(title);
+
+  const displayPlatform =
+    getBackgroundPlatformDisplayName(
+      platform
+    );
+
+  return [
+    `**Background Script ${displayTitle} ${displayPlatform} Updated at ${formatDetectionTime(detectedAt)}**`,
+    `Last modified: \`${lastModified || 'unknown'}\``,
+    `Prev last modified: \`${previousLastModified || 'unknown'}\``,
+    `Build: ${build}`,
+    formatSizeLine(
+      previousSize,
+      currentSize
+    )
   ]
     .filter(Boolean)
     .join('\n');
@@ -355,5 +471,8 @@ module.exports = {
   sendDM,
   formatUpdate,
   formatFirstSeen,
-  formatRecovery
+  formatRecovery,
+  formatBackgroundNewBuild,
+  formatBackgroundFirstSeen,
+  formatBackgroundUpdated
 };
