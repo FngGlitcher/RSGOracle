@@ -91,6 +91,10 @@ async function main() {
           lastModified:
             event.metadata.last_modified,
 
+          previousLastModified:
+            event.metadata
+              .previous_last_modified,
+
           changes:
             event.changes,
 
