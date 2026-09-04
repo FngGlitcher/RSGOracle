@@ -1,5 +1,5 @@
+const joaat = require('./joaat');
 const { request } = require('./http');
-const { joaat, joaatSigned } = require('./joaat');
 
 let dictionaryPromise = null;
 let indexesPromise = null;
@@ -53,10 +53,10 @@ function parseTunableNames(textValue) {
       continue;
     }
 
-    const hash = parts[0];
+    const hash = parts[0].trim();
     const name = parts.slice(1).join(' ').trim();
 
-    if (!name) {
+    if (!hash || !name) {
       continue;
     }
 
@@ -85,7 +85,7 @@ function parseGtaDictionary(textValue) {
     const hash = parts[0].trim();
     const name = parts.slice(1).join('\t').trim();
 
-    if (!name || !hash) {
+    if (!hash || !name) {
       continue;
     }
 
@@ -166,19 +166,23 @@ async function buildDictionary(config) {
   const labels = parseLabels(raw.labels);
   const jobs = parseJobs(raw.jobs);
 
-  /*
-   * Keep the same general dictionary structure:
-   *
-   * - tunables: known tunable names
-   * - other: GTA hash database + labels
-   * - jobs: job dictionary
-   */
   const other = {
     ...gta
   };
 
+  /*
+   * TextKeys.txt contains labels that must be converted to
+   * their signed JOAAT hash.
+   *
+   * joaat() returns:
+   * {
+   *   unsigned,
+   *   signed,
+   *   hex
+   * }
+   */
   for (const [name, value] of Object.entries(labels)) {
-    other[name] = joaatSigned(value);
+    other[name] = joaat(value).signed;
   }
 
   const dictionary = {
@@ -205,14 +209,13 @@ function buildIndexes(dictionary) {
   /*
    * Build the tunable lookup indexes once.
    *
-   * The old implementation rebuilt these indexes for every target.
+   * Each tunable is indexed under several possible contexts.
    */
   for (const [name, hash] of Object.entries(dictionary.tunables)) {
     const upperName = String(name).toUpperCase();
     const hashString = String(hash);
 
     const parts = upperName.split('_');
-
     const contexts = new Set();
 
     if (parts.length >= 1) {
@@ -220,18 +223,25 @@ function buildIndexes(dictionary) {
     }
 
     if (parts.length >= 2) {
-      contexts.add(`${parts[0]}_${parts[1]}`);
+      contexts.add(
+        `${parts[0]}_${parts[1]}`
+      );
     }
 
     if (parts.length >= 3) {
-      contexts.add(`${parts[0]}_${parts[1]}_${parts[2]}`);
+      contexts.add(
+        `${parts[0]}_${parts[1]}_${parts[2]}`
+      );
     }
 
     contexts.add('GLOBAL');
 
     for (const context of contexts) {
       if (!tunableByContext.has(context)) {
-        tunableByContext.set(context, new Map());
+        tunableByContext.set(
+          context,
+          new Map()
+        );
       }
 
       tunableByContext
@@ -241,29 +251,30 @@ function buildIndexes(dictionary) {
   }
 
   /*
-   * CRITICAL OPTIMIZATION
+   * CRITICAL PERFORMANCE FIX
    *
-   * The previous resolver did:
+   * Before:
    *
-   *   for every numeric value
-   *     scan all ~678,000 dictionary.other entries
+   *   for every numeric value:
+   *     scan all ~678,000 entries
    *
-   * That made the workflow effectively hang.
+   * That is effectively O(values * 678000).
    *
-   * We create a reverse index once:
+   * Now:
    *
    *   hash -> name
    *
-   * Resolution is therefore O(1) instead of O(678,000).
-   *
-   * Keep the FIRST matching entry to preserve the behavior of
-   * Object.entries(dictionary.other).find(...).
+   * giving an O(1) lookup.
    */
   const otherByValue = new Map();
 
   for (const [key, hash] of Object.entries(dictionary.other)) {
     const hashString = String(hash);
 
+    /*
+     * Preserve the first matching entry, just like the old
+     * Object.entries(...).find(...) behavior.
+     */
     if (!otherByValue.has(hashString)) {
       otherByValue.set(
         hashString,
@@ -290,9 +301,6 @@ function makeResolver(dictionary, indexes, platform) {
     otherByValue
   } = indexes;
 
-  /*
-   * Per-resolve cache.
-   */
   const cache = new Map();
 
   function resolveValue(value) {
@@ -301,22 +309,27 @@ function makeResolver(dictionary, indexes, platform) {
     }
 
     /*
-     * O(1) lookup instead of scanning 678k entries.
+     * O(1) lookup.
      */
-    return otherByValue.get(String(value)) ?? value;
+    return (
+      otherByValue.get(String(value)) ??
+      value
+    );
   }
 
   function lookup(hash, context) {
     const hashString = String(hash);
 
     /*
-     * Try the current context first.
+     * 1. Current context.
      */
     if (context) {
-      const contextMap = tunableByContext.get(context);
+      const contextMap =
+        tunableByContext.get(context);
 
       if (contextMap) {
-        const name = contextMap.get(hashString);
+        const name =
+          contextMap.get(hashString);
 
         if (name) {
           return name;
@@ -325,10 +338,11 @@ function makeResolver(dictionary, indexes, platform) {
     }
 
     /*
-     * Try all known contexts.
+     * 2. All contexts.
      */
     for (const contextMap of tunableByContext.values()) {
-      const name = contextMap.get(hashString);
+      const name =
+        contextMap.get(hashString);
 
       if (name) {
         return name;
@@ -336,19 +350,24 @@ function makeResolver(dictionary, indexes, platform) {
     }
 
     /*
-     * Try the generic reverse dictionary.
+     * 3. Generic GTA dictionary.
      */
-    const otherName = otherByValue.get(hashString);
+    const otherName =
+      otherByValue.get(hashString);
 
     if (otherName) {
       return otherName;
     }
 
     /*
-     * Job-specific lookup.
+     * 4. Jobs dictionary.
      */
-    if (platform && platform.toLowerCase().includes('pc')) {
-      const jobsName = dictionary.jobs[hashString];
+    if (
+      platform &&
+      platform.toLowerCase().includes('pc')
+    ) {
+      const jobsName =
+        dictionary.jobs[hashString];
 
       if (jobsName) {
         return String(jobsName).toUpperCase();
@@ -358,7 +377,11 @@ function makeResolver(dictionary, indexes, platform) {
     return null;
   }
 
-  function resolveObject(value, context, depth = 0) {
+  function resolveObject(
+    value,
+    context,
+    depth = 0
+  ) {
     if (depth > 50) {
       return value;
     }
@@ -369,11 +392,18 @@ function makeResolver(dictionary, indexes, platform) {
 
     if (Array.isArray(value)) {
       return value.map(item =>
-        resolveObject(item, context, depth + 1)
+        resolveObject(
+          item,
+          context,
+          depth + 1
+        )
       );
     }
 
-    if (!value || typeof value !== 'object') {
+    if (
+      !value ||
+      typeof value !== 'object'
+    ) {
       return value;
     }
 
@@ -386,13 +416,15 @@ function makeResolver(dictionary, indexes, platform) {
         typeof item === 'string' &&
         item.length > 0
       ) {
-        const upperKey = key.toUpperCase();
+        const upperKey =
+          key.toUpperCase();
 
         if (
           upperKey.includes('CONTEXT') ||
           upperKey.includes('TUNABLE')
         ) {
-          nextContext = item.toUpperCase();
+          nextContext =
+            item.toUpperCase();
         }
       }
 
@@ -412,75 +444,101 @@ function makeResolver(dictionary, indexes, platform) {
     let processed = 0;
     let resolved = 0;
 
-    const entries = Object.entries(tunables);
+    const entries =
+      Object.entries(tunables);
+
     const total = entries.length;
 
     console.log(
       `[RESOLVER] Starting value resolution: ${total} entries`
     );
 
-    /*
-     * Do not keep context from a previous call.
-     */
     let previousContext = null;
 
     for (const [key, value] of entries) {
-      const upperKey = String(key).toUpperCase();
+      const upperKey =
+        String(key).toUpperCase();
 
-      /*
-       * Determine a useful context from the key.
-       */
-      const parts = upperKey.split('_');
+      const parts =
+        upperKey.split('_');
 
       if (parts.length >= 2) {
-        previousContext = `${parts[0]}_${parts[1]}`;
+        previousContext =
+          `${parts[0]}_${parts[1]}`;
       } else if (parts.length === 1) {
-        previousContext = parts[0];
+        previousContext =
+          parts[0];
       }
 
-      const cacheKey = `${previousContext || ''}:${upperKey}`;
+      const cacheKey =
+        `${previousContext || ''}:${upperKey}`;
 
       if (cache.has(cacheKey)) {
-        result[key] = cache.get(cacheKey);
+        result[key] =
+          cache.get(cacheKey);
+
         processed++;
         continue;
       }
 
-      let resolvedKey = lookup(
-        joaatSigned(upperKey),
-        previousContext
-      );
-
-      if (!resolvedKey) {
-        resolvedKey = lookup(
-          joaat(upperKey),
+      /*
+       * Try signed JOAAT first.
+       */
+      let resolvedKey =
+        lookup(
+          joaat(upperKey).signed,
           previousContext
         );
+
+      /*
+       * Then unsigned JOAAT.
+       */
+      if (!resolvedKey) {
+        resolvedKey =
+          lookup(
+            joaat(upperKey).unsigned,
+            previousContext
+          );
       }
 
       if (resolvedKey) {
         resolved++;
-        cache.set(cacheKey, resolvedKey);
-        result[resolvedKey] = resolveObject(
-          value,
-          previousContext
+
+        cache.set(
+          cacheKey,
+          resolvedKey
         );
+
+        result[resolvedKey] =
+          resolveObject(
+            value,
+            previousContext
+          );
       } else {
-        cache.set(cacheKey, upperKey);
-        result[upperKey] = resolveObject(
-          value,
-          previousContext
+        cache.set(
+          cacheKey,
+          upperKey
         );
+
+        result[upperKey] =
+          resolveObject(
+            value,
+            previousContext
+          );
       }
 
       processed++;
 
+      /*
+       * Progress every 5,000 entries.
+       */
       if (
         processed % 5000 === 0 ||
         processed === total
       ) {
         console.log(
-          `[RESOLVER] Progress: ${processed}/${total} ` +
+          `[RESOLVER] Progress: ` +
+          `${processed}/${total} ` +
           `(${resolved} resolved)`
         );
       }
@@ -502,34 +560,40 @@ function makeResolver(dictionary, indexes, platform) {
   };
 }
 
-async function getResolver(config, platform) {
+async function getResolver(
+  config,
+  platform
+) {
   /*
-   * Download/build the dictionary only ONCE per Node process.
-   *
-   * All 10 targets share the same dictionary.
+   * Download dictionaries only once per Node process.
    */
   if (!dictionaryPromise) {
-    dictionaryPromise = buildDictionary(config).catch(error => {
-      dictionaryPromise = null;
-      throw error;
-    });
+    dictionaryPromise =
+      buildDictionary(config)
+        .catch(error => {
+          dictionaryPromise = null;
+          throw error;
+        });
   }
 
-  const dictionary = await dictionaryPromise;
+  const dictionary =
+    await dictionaryPromise;
 
   /*
-   * Build the expensive indexes only ONCE.
+   * Build resolver indexes only once.
    */
   if (!indexesPromise) {
-    indexesPromise = Promise.resolve(
-      buildIndexes(dictionary)
-    ).catch(error => {
-      indexesPromise = null;
-      throw error;
-    });
+    indexesPromise =
+      Promise.resolve(
+        buildIndexes(dictionary)
+      ).catch(error => {
+        indexesPromise = null;
+        throw error;
+      });
   }
 
-  const indexes = await indexesPromise;
+  const indexes =
+    await indexesPromise;
 
   return makeResolver(
     dictionary,
