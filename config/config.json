@@ -1,0 +1,100 @@
+{
+  "enabled": true,
+  "polling": {
+    "interval_minutes": 30,
+    "timeout_ms": 30000,
+    "retry_count": 2
+  },
+  "features": {
+    "updates": true,
+    "first_seen": true,
+    "recovery": true,
+    "save_history": true,
+    "save_encrypted": true,
+    "save_decrypted": true,
+    "generate_changelog": true,
+    "discord": true,
+    "git_commit": true
+  },
+  "discord": {
+    "token_env": "DISCORD_BOT_TOKEN",
+    "user_id_env": "DISCORD_USER_ID"
+  },
+  "resolver": {
+    "enabled": true,
+    "download_dictionaries": true,
+    "tunable_names_url": "https://raw.githubusercontent.com/Wildbrick142/V-Tunable-Names/main/tunable_list.txt",
+    "tuneables_processing_url": "https://raw.githubusercontent.com/root-cause/v-decompiled-scripts/master/tuneables_processing.c",
+    "gta_dictionary_url": "https://raw.githubusercontent.com/calamity-inc/gta-v-joaat-hash-db/senpai/out/dictionary-dec_signed.tsv",
+    "gta_labels_url": "https://raw.githubusercontent.com/root-cause/v-labels/master/TextKeys.txt",
+    "jobs_dictionary_url": "https://raw.githubusercontent.com/Troplo/GTAV-Tunables/master/src/static/jobs_dictionary.json"
+  },
+  "titles": {
+    "gta5": {
+      "enabled": true,
+      "endpoints": {
+        "pcros": {
+          "enabled": true,
+          "platform_path": "pcros",
+          "decrypt": true
+        },
+        "pcrosalt": {
+          "enabled": true,
+          "platform_path": "pcrosalt",
+          "decrypt": true
+        },
+        "ps4": {
+          "enabled": true,
+          "platform_path": "PS4",
+          "decrypt": true
+        },
+        "ps5": {
+          "enabled": true,
+          "platform_path": "PS5",
+          "decrypt": true
+        },
+        "xboxone": {
+          "enabled": true,
+          "platform_path": "xboxone",
+          "decrypt": true
+        },
+        "xboxsx": {
+          "enabled": true,
+          "platform_path": "xboxsx",
+          "decrypt": true
+        },
+        "ps3": {
+          "enabled": true,
+          "platform_path": "ps3",
+          "decrypt": false
+        },
+        "xbox360": {
+          "enabled": true,
+          "platform_path": "xbox360",
+          "decrypt": false
+        }
+      }
+    },
+    "gta6": {
+      "enabled": true,
+      "endpoints": {
+        "ps5": {
+          "enabled": true,
+          "platform_path": "PS5",
+          "first_seen": true,
+          "decrypt": true
+        },
+        "ps6": {
+          "enabled": true,
+          "platform_path": "PS6",
+          "first_seen": true,
+          "decrypt": true
+        }
+      }
+    }
+  },
+  "source": {
+    "url_template": "http://prod.cloud.rockstargames.com/titles/{title}/{platform}/0x1a098062.json",
+    "asset": "0x1a098062"
+  }
+}

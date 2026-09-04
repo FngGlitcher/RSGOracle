@@ -1,0 +1,60 @@
+name: Update GTA Tunables
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tunables-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install
+        run: npm install
+
+      - name: Validate
+        run: npm run check
+
+      - name: Update
+        env:
+          TUNABLES_AES_KEY: ${{ secrets.TUNABLES_AES_KEY }}
+        run: node src/index.js
+
+      - name: Commit changes
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add config data history changelogs
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore: update tunables"
+            git push
+          fi
+
+      - name: Send Discord notifications
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_USER_ID: ${{ secrets.DISCORD_USER_ID }}
+          TUNABLES_AES_KEY: ${{ secrets.TUNABLES_AES_KEY }}
+        run: node src/notify.js

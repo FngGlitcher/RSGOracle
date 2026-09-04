@@ -1,0 +1,15 @@
+{
+  "name": "gtav-tunables-monitor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Multi-title GTA tunables watcher, decryptor, resolver, history and Discord notifier.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "check": "node --check src/index.js && node --check src/lib/http.js && node --check src/lib/joaat.js && node --check src/lib/diff.js && node --check src/lib/state.js && node --check src/lib/discord.js && node --check src/lib/decrypt.js && node --check src/lib/resolver.js && node --check src/lib/processor.js && node --check src/lib/config.js && node --check src/notify.js",
+    "test": "node tests/joaat.test.js && node tests/diff.test.js && node tests/decrypt.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
