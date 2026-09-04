@@ -1,4 +1,4 @@
-```js
+js
 const fs = require('fs');
 const path = require('path');
 const { loadConfig, getTargets, ROOT } = require('./lib/config');
@@ -80,4 +80,3 @@ main().catch(error => {
   console.error(error);
   process.exit(1);
 });
-```
