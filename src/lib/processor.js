@@ -604,6 +604,13 @@ async function processTarget(
       );
   }
 
+  metadata.detected_at =
+    nowIso();
+
+  metadata.previous_content_length =
+    previous.last_content_length ??
+    metadata.content_length;
+
   state.targets[id] = {
     ...previous,
     target,
@@ -616,6 +623,8 @@ async function processTarget(
       metadata.last_modified,
     etag:
       metadata.etag,
+    last_content_length:
+      metadata.content_length,
     last_hash:
       dataHash,
     last_error:
