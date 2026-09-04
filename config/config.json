@@ -34,7 +34,7 @@
     "build_window": 25,
     "sub_window": 50,
     "concurrency": 150,
-    "timeout_ms": 15000,
+    "timeout_ms": 30000,
     "url_template": "http://prod.cloud.rockstargames.com/titles/{title}/{platform}/bgscripts/bg_ng_{build}_{sub}.rpf"
   },
   "titles": {
