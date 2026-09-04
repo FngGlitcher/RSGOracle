@@ -15,8 +15,6 @@ runs-on: ubuntu-latest
 steps:
   - name: Checkout repository
     uses: actions/checkout@v4
-    with:
-      fetch-depth: 0
 
   - name: Setup Node.js
     uses: actions/setup-node@v4
@@ -26,10 +24,10 @@ steps:
   - name: Install dependencies
     run: npm install
 
-  - name: Check JavaScript syntax
+  - name: Check syntax
     run: npm run check
 
-  - name: Create data directories
+  - name: Create directories
     run: |
       mkdir -p data/state
       mkdir -p data/current
@@ -50,7 +48,7 @@ steps:
       git add -A
 
       if git diff --cached --quiet; then
-        echo "No changes to commit."
+        echo "No changes to commit"
       else
         git commit -m "chore: update tunables"
         git push
