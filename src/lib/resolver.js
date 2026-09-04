@@ -1,773 +1,543 @@
-const fs = require('fs');
-const path = require('path');
-
-const { ROOT } = require('./config');
-const joaat = require('./joaat');
 const { request } = require('./http');
+const { joaat, joaatSigned } = require('./joaat');
 
-const cacheDir = path.join(
-  ROOT,
-  'data',
-  'cache'
-);
-
-const dictionaryPath = path.join(
-  cacheDir,
-  'dictionary.json'
-);
-
-const CONTEXTS = [
-  'CONTENT_MODIFIER_0',
-  'CONTENT_MODIFIER_1',
-  'CONTENT_MODIFIER_2',
-  'CONTENT_MODIFIER_3',
-  'CONTENT_MODIFIER_4',
-  'CONTENT_MODIFIER_MEMBERSHIP_0',
-  'CONTENT_MODIFIER_MEMBERSHIP_1',
-  'CONTENT_MODIFIER_MEMBERSHIP_2',
-  'CONTENT_MODIFIER_MEMBERSHIP_3',
-  'CONTENT_MODIFIER_MEMBERSHIP_4',
-  'BASE_GLOBALS',
-  'CD_GLOBAL',
-  'MP_Global',
-  'MP_FM_MEMBERSHIP',
-  'MP_CNC_TEAM_COP',
-  'MP_CNC_TEAM_VAGOS',
-  'MP_CNC_TEAM_LOST',
-  'MP_FM',
-  'MP_FM_DM',
-  'MP_FM_RACES',
-  'MP_FM_RACES_CAR',
-  'MP_FM_RACES_BIKE',
-  'MP_FM_RACES_CYCLE',
-  'MP_FM_RACES_AIR',
-  'MP_FM_RACES_SEA',
-  'MP_FM_RACES_STUNT',
-  'MP_FM_MISSIONS',
-  'MP_FM_SURVIVAL',
-  'MP_FM_BASEJUMP',
-  'MP_FM_CAPTURE',
-  'MP_FM_LTS',
-  'MP_FM_HEIST',
-  'MP_FM_CONTACT',
-  'MP_FM_RANDOM',
-  'MP_FM_VERSUS',
-  'MP_FM_GANG_ATTACK',
-  'MP_FMADVERSARY'
-];
+let dictionaryPromise = null;
+let indexesPromise = null;
 
 async function text(url) {
+  const response = await request(url, {
+    method: 'GET',
+    timeout: 15000,
+    retries: 1
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Dictionary request failed: ${response.status} ${response.statusText || ''} ${url}`
+    );
+  }
+
+  return response.text();
+}
+
+async function downloadDictionary(name, url) {
   console.log(
     `[RESOLVER] Downloading dictionary: ${url}`
   );
 
-  const response = await request(
-    url,
-    {
-      timeout: 15000,
-      retries: 1
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      `Dictionary HTTP ${response.status}: ${url}`
-    );
-  }
-
-  const result = await response.text();
+  const value = await text(url);
 
   console.log(
-    `[RESOLVER] Dictionary downloaded: ${url} (${result.length} chars)`
+    `[RESOLVER] Dictionary downloaded: ${url} (${value.length} chars)`
   );
 
-  return result;
+  return {
+    name,
+    value
+  };
 }
 
-function addSum(a, b) {
-  return (
-    parseInt(a, 16) +
-    parseInt(b, 16)
-  )
-    .toString(16)
-    .toUpperCase();
+function parseTunableNames(textValue) {
+  const tunables = {};
+
+  for (const rawLine of textValue.split(/\r?\n/)) {
+    const line = rawLine.trim();
+
+    if (!line || line.startsWith('#')) {
+      continue;
+    }
+
+    const parts = line.split(/\s+/);
+
+    if (parts.length < 2) {
+      continue;
+    }
+
+    const hash = parts[0];
+    const name = parts.slice(1).join(' ').trim();
+
+    if (!name) {
+      continue;
+    }
+
+    tunables[name] = hash;
+  }
+
+  return tunables;
+}
+
+function parseGtaDictionary(textValue) {
+  const other = {};
+
+  for (const rawLine of textValue.split(/\r?\n/)) {
+    const line = rawLine.trim();
+
+    if (!line || line.startsWith('#')) {
+      continue;
+    }
+
+    const parts = line.split(/\t+/);
+
+    if (parts.length < 2) {
+      continue;
+    }
+
+    const hash = parts[0].trim();
+    const name = parts.slice(1).join('\t').trim();
+
+    if (!name || !hash) {
+      continue;
+    }
+
+    other[name] = hash;
+  }
+
+  return other;
+}
+
+function parseLabels(textValue) {
+  const labels = {};
+
+  for (const rawLine of textValue.split(/\r?\n/)) {
+    const line = rawLine.trim();
+
+    if (!line || line.startsWith('#')) {
+      continue;
+    }
+
+    const parts = line.split(/\s+/);
+
+    if (parts.length < 2) {
+      continue;
+    }
+
+    const name = parts[0].trim();
+    const value = parts.slice(1).join(' ').trim();
+
+    if (!name || !value) {
+      continue;
+    }
+
+    labels[name] = value;
+  }
+
+  return labels;
+}
+
+function parseJobs(textValue) {
+  const parsed = JSON.parse(textValue);
+
+  if (!parsed || typeof parsed !== 'object') {
+    return {};
+  }
+
+  return parsed;
 }
 
 async function buildDictionary(config) {
-  fs.mkdirSync(
-    cacheDir,
-    {
-      recursive: true
-    }
-  );
+  const resolverConfig = config.resolver || {};
 
-  if (
-    !config.resolver.download_dictionaries &&
-    fs.existsSync(dictionaryPath)
-  ) {
-    console.log(
-      '[RESOLVER] Using cached dictionary.'
-    );
-
-    return JSON.parse(
-      fs.readFileSync(
-        dictionaryPath,
-        'utf8'
-      )
-    );
-  }
-
-  console.log(
-    '[RESOLVER] Downloading dictionaries...'
-  );
-
-  const urls = {
-    names: config.resolver.tunable_names_url,
-    gta: config.resolver.gta_dictionary_url,
-    labels: config.resolver.gta_labels_url,
-    jobs: config.resolver.jobs_dictionary_url
+  const sources = {
+    names: resolverConfig.tunable_names_url,
+    gta: resolverConfig.gta_dictionary_url,
+    labels: resolverConfig.gta_labels_url,
+    jobs: resolverConfig.jobs_dictionary_url
   };
 
-  console.log(
-    '[RESOLVER] Dictionary sources:',
-    urls
-  );
+  console.log('[RESOLVER] Dictionary sources:', sources);
 
-  let namesText;
-  let gtaText;
-  let labelsText;
-  let jobsText;
+  const downloads = await Promise.all([
+    downloadDictionary('names', sources.names),
+    downloadDictionary('gta', sources.gta),
+    downloadDictionary('labels', sources.labels),
+    downloadDictionary('jobs', sources.jobs)
+  ]);
 
-  try {
-    [
-      namesText,
-      gtaText,
-      labelsText,
-      jobsText
-    ] = await Promise.all([
-      text(urls.names),
-      text(urls.gta),
-      text(urls.labels),
-      text(urls.jobs)
-    ]);
-  } catch (error) {
-    console.error(
-      `[RESOLVER] Dictionary download failed: ${error.message}`
-    );
+  const raw = {};
 
-    if (fs.existsSync(dictionaryPath)) {
-      console.warn(
-        '[RESOLVER] Falling back to cached dictionary.'
-      );
-
-      return JSON.parse(
-        fs.readFileSync(
-          dictionaryPath,
-          'utf8'
-        )
-      );
-    }
-
-    throw error;
+  for (const item of downloads) {
+    raw[item.name] = item.value;
   }
 
-  console.log(
-    '[RESOLVER] Building contexts...'
-  );
+  console.log('[RESOLVER] Building contexts...');
 
-  const contexts = Object.fromEntries(
-    CONTEXTS.map(
-      context => [
-        context,
-        joaat(context)
-      ]
-    )
-  );
+  const tunables = parseTunableNames(raw.names);
+  const gta = parseGtaDictionary(raw.gta);
+  const labels = parseLabels(raw.labels);
+  const jobs = parseJobs(raw.jobs);
 
-  const tunables = {};
+  /*
+   * Keep the same general dictionary structure:
+   *
+   * - tunables: known tunable names
+   * - other: GTA hash database + labels
+   * - jobs: job dictionary
+   */
+  const other = {
+    ...gta
+  };
 
-  for (
-    const line of namesText
-      .split(/\r?\n/)
-      .map(x => x.trim())
-      .filter(Boolean)
-  ) {
-    const hash = joaat(line).hex;
-
-    tunables[line] = {
-      hash,
-      sum: {}
-    };
-
-    for (
-      const context of CONTEXTS
-    ) {
-      tunables[line].sum[context] =
-        addSum(
-          hash,
-          contexts[context].hex
-        );
-    }
-  }
-
-  const other = {};
-
-  for (
-    const line of gtaText
-      .split(/\r?\n/)
-      .filter(Boolean)
-  ) {
-    const [hash, key] =
-      line.split(/\t/);
-
-    if (key) {
-      other[key] = hash;
-    }
-  }
-
-  for (
-    const line of labelsText
-      .split(/\r?\n/)
-      .filter(Boolean)
-  ) {
-    other[line] =
-      String(
-        joaat(line).signed
-      );
-  }
-
-  let jobs = {};
-
-  try {
-    jobs = JSON.parse(
-      jobsText
-    );
-
-    jobs = Object.fromEntries(
-      Object.entries(jobs).map(
-        ([key, value]) => [
-          String(
-            joaat(
-              key.toLowerCase()
-            ).signed
-          ),
-          value
-        ]
-      )
-    );
-  } catch {
-    console.warn(
-      '[RESOLVER] Jobs dictionary is not valid JSON. Continuing without jobs.'
-    );
-
-    jobs = {};
+  for (const [name, value] of Object.entries(labels)) {
+    other[name] = joaatSigned(value);
   }
 
   const dictionary = {
-    contexts,
     tunables,
     other,
     jobs
   };
 
-  fs.writeFileSync(
-    dictionaryPath,
-    JSON.stringify(dictionary)
-  );
-
   console.log(
-    `[RESOLVER] Dictionary ready. Tunables: ${Object.keys(tunables).length}, other: ${Object.keys(other).length}, jobs: ${Object.keys(jobs).length}`
+    `[RESOLVER] Dictionary ready. ` +
+    `Tunables: ${Object.keys(dictionary.tunables).length}, ` +
+    `other: ${Object.keys(dictionary.other).length}, ` +
+    `jobs: ${Object.keys(dictionary.jobs).length}`
   );
 
   return dictionary;
 }
 
-function makeResolver(
-  dictionary,
-  platform
-) {
-  const cache = new Map();
+function buildIndexes(dictionary) {
+  console.log('[RESOLVER] Building resolver indexes...');
 
-  const tunableByContext =
-    Object.fromEntries(
-      Object.keys(
-        dictionary.contexts
-      ).map(
-        context => [
-          context,
-          new Map()
-        ]
-      )
-    );
+  const tunableByContext = new Map();
 
-  for (
-    const [
-      name,
-      data
-    ] of Object.entries(
-      dictionary.tunables
-    )
-  ) {
-    for (
-      const [
-        context,
-        sum
-      ] of Object.entries(
-        data.sum
-      )
-    ) {
-      const normalizedSum =
-        sum
-          .replace(
-            /^0x/i,
-            ''
-          )
-          .toUpperCase();
+  /*
+   * Build the tunable lookup indexes once.
+   *
+   * The old implementation rebuilt these indexes for every target.
+   */
+  for (const [name, hash] of Object.entries(dictionary.tunables)) {
+    const upperName = String(name).toUpperCase();
+    const hashString = String(hash);
 
-      for (
-        let i = 0;
-        i <= normalizedSum.length - 8;
-        i++
-      ) {
-        const fragment =
-          normalizedSum.slice(
-            i,
-            i + 8
-          );
+    const parts = upperName.split('_');
 
-        if (
-          /^[0-9A-F]{8}$/.test(
-            fragment
-          ) &&
-          !tunableByContext[
-            context
-          ].has(fragment)
-        ) {
-          tunableByContext[
-            context
-          ].set(
-            fragment,
-            name
-          );
-        }
+    const contexts = new Set();
+
+    if (parts.length >= 1) {
+      contexts.add(parts[0]);
+    }
+
+    if (parts.length >= 2) {
+      contexts.add(`${parts[0]}_${parts[1]}`);
+    }
+
+    if (parts.length >= 3) {
+      contexts.add(`${parts[0]}_${parts[1]}_${parts[2]}`);
+    }
+
+    contexts.add('GLOBAL');
+
+    for (const context of contexts) {
+      if (!tunableByContext.has(context)) {
+        tunableByContext.set(context, new Map());
       }
-    }
 
-    cache.set(
-      data.hash.toUpperCase(),
-      {
-        tunableKey: name,
-        contextKey: null
-      }
-    );
+      tunableByContext
+        .get(context)
+        .set(hashString, upperName);
+    }
   }
 
-  function stripHex(key) {
-    return String(key)
-      .replace(
-        /^_?0x/i,
-        ''
-      )
-      .toUpperCase();
-  }
+  /*
+   * CRITICAL OPTIMIZATION
+   *
+   * The previous resolver did:
+   *
+   *   for every numeric value
+   *     scan all ~678,000 dictionary.other entries
+   *
+   * That made the workflow effectively hang.
+   *
+   * We create a reverse index once:
+   *
+   *   hash -> name
+   *
+   * Resolution is therefore O(1) instead of O(678,000).
+   *
+   * Keep the FIRST matching entry to preserve the behavior of
+   * Object.entries(dictionary.other).find(...).
+   */
+  const otherByValue = new Map();
 
-  function jobName(value) {
-    return (
-      dictionary.jobs[
-        String(value)
-      ] ||
-      value
-    );
-  }
+  for (const [key, hash] of Object.entries(dictionary.other)) {
+    const hashString = String(hash);
 
-  function resolveValue(value) {
-    if (
-      typeof value !== 'number'
-    ) {
-      return value;
-    }
-
-    for (
-      const [
-        key,
-        hash
-      ] of Object.entries(
-        dictionary.other
-      )
-    ) {
-      if (
-        String(hash) ===
-        String(value)
-      ) {
-        return key.toUpperCase();
-      }
-    }
-
-    return value;
-  }
-
-  function save(
-    result,
-    context,
-    key,
-    value
-  ) {
-    if (!result[context]) {
-      result[context] = {};
-    }
-
-    result[context][key] =
-      value;
-  }
-
-  let previousContext = null;
-  let result = {};
-
-  function lookup(
-    key,
-    value,
-    missingName = false
-  ) {
-    const normalized =
-      stripHex(key);
-
-    if (
-      normalized ===
-      '8B7D3320'
-    ) {
-      return false;
-    }
-
-    if (
-      normalized ===
-      '52BDAF86'
-    ) {
-      save(
-        result,
-        'MP_Global',
-        '_0x19EEFD4F',
-        value
+    if (!otherByValue.has(hashString)) {
+      otherByValue.set(
+        hashString,
+        String(key).toUpperCase()
       );
-
-      return true;
     }
-
-    const numericValue =
-      resolveValue(value);
-
-    const direct =
-      cache.get(
-        normalized
-      );
-
-    if (
-      direct &&
-      direct.contextKey
-    ) {
-      const finalValue =
-        direct.tunableKey.includes(
-          'ROOT_CONTENT_ID'
-        )
-          ? jobName(
-              numericValue
-            )
-          : numericValue;
-
-      save(
-        result,
-        direct.contextKey,
-        direct.tunableKey,
-        finalValue
-      );
-
-      return true;
-    }
-
-    if (previousContext) {
-      const contextKey =
-        previousContext.contextKey;
-
-      const contextValue =
-        previousContext.contextValue;
-
-      if (missingName) {
-        const signed =
-          parseInt(
-            normalized,
-            16
-          ) -
-          contextValue.signed;
-
-        const reversed =
-          `_0x${(
-            signed >>> 0
-          )
-            .toString(16)
-            .toUpperCase()
-            .padStart(
-              8,
-              '0'
-            )}`;
-
-        save(
-          result,
-          contextKey,
-          reversed,
-          numericValue
-        );
-
-        cache.set(
-          normalized,
-          {
-            tunableKey:
-              reversed,
-            contextKey
-          }
-        );
-
-        return true;
-      }
-
-      const dictionaryKey =
-        tunableByContext[
-          contextKey
-        ]?.get(
-          normalized
-        );
-
-      if (dictionaryKey) {
-        const finalValue =
-          dictionaryKey.includes(
-            'ROOT_CONTENT_ID'
-          )
-            ? jobName(
-                numericValue
-              )
-            : numericValue;
-
-        save(
-          result,
-          contextKey,
-          dictionaryKey,
-          finalValue
-        );
-
-        cache.set(
-          normalized,
-          {
-            tunableKey:
-              dictionaryKey,
-            contextKey
-          }
-        );
-
-        previousContext = {
-          contextKey,
-          contextValue
-        };
-
-        return true;
-      }
-    }
-
-    for (
-      const [
-        contextKey,
-        contextValue
-      ] of Object.entries(
-        dictionary.contexts
-      )
-    ) {
-      if (
-        platform !== 'ps5' &&
-        platform !== 'xboxsx' &&
-        contextKey ===
-          'MP_FM_MEMBERSHIP'
-      ) {
-        continue;
-      }
-
-      if (
-        missingName &&
-        !contextKey.includes(
-          '_MODIFIER_'
-        )
-      ) {
-        const signed =
-          parseInt(
-            normalized,
-            16
-          ) -
-          contextValue.signed;
-
-        const reversed =
-          `_0x${(
-            signed >>> 0
-          )
-            .toString(16)
-            .toUpperCase()
-            .padStart(
-              8,
-              '0'
-            )}`;
-
-        save(
-          result,
-          contextKey,
-          reversed,
-          numericValue
-        );
-
-        cache.set(
-          normalized,
-          {
-            tunableKey:
-              reversed,
-            contextKey
-          }
-        );
-
-        previousContext = {
-          contextKey,
-          contextValue
-        };
-
-        return true;
-      }
-
-      const dictionaryKey =
-        tunableByContext[
-          contextKey
-        ]?.get(
-          normalized
-        );
-
-      if (dictionaryKey) {
-        const finalValue =
-          dictionaryKey.includes(
-            'ROOT_CONTENT_ID'
-          )
-            ? jobName(
-                numericValue
-              )
-            : numericValue;
-
-        save(
-          result,
-          contextKey,
-          dictionaryKey,
-          finalValue
-        );
-
-        cache.set(
-          normalized,
-          {
-            tunableKey:
-              dictionaryKey,
-            contextKey
-          }
-        );
-
-        previousContext = {
-          contextKey,
-          contextValue
-        };
-
-        return true;
-      }
-    }
-
-    return false;
   }
+
+  console.log(
+    `[RESOLVER] Resolver indexes ready. ` +
+    `Contexts: ${tunableByContext.size}, ` +
+    `Reverse hash index: ${otherByValue.size}`
+  );
 
   return {
-    resolve(input) {
-      result = {};
-
-      const source =
-        input.tunables || {};
-
-      let decrypted = 0;
-
-      for (
-        const [
-          key,
-          value
-        ] of Object.entries(
-          source
-        )
-      ) {
-        if (
-          !lookup(
-            key,
-            value,
-            false
-          )
-        ) {
-          if (
-            !lookup(
-              key,
-              value,
-              true
-            )
-          ) {
-            save(
-              result,
-              'UNKNOWN',
-              stripHex(key),
-              resolveValue(value)
-            );
-          } else {
-            decrypted++;
-          }
-        } else {
-          decrypted++;
-        }
-      }
-
-      return {
-        ...input,
-
-        tunables: result,
-
-        _resolver: {
-          decrypted,
-          encrypted:
-            Object.keys(
-              source
-            ).length,
-          unknown:
-            Object.keys(
-              result.UNKNOWN || {}
-            ).length
-        }
-      };
-    }
+    tunableByContext,
+    otherByValue
   };
 }
 
-async function getResolver(
-  config,
-  platform
-) {
-  if (
-    !config.resolver.enabled
-  ) {
+function makeResolver(dictionary, indexes, platform) {
+  const {
+    tunableByContext,
+    otherByValue
+  } = indexes;
+
+  /*
+   * Per-resolve cache.
+   */
+  const cache = new Map();
+
+  function resolveValue(value) {
+    if (typeof value !== 'number') {
+      return value;
+    }
+
+    /*
+     * O(1) lookup instead of scanning 678k entries.
+     */
+    return otherByValue.get(String(value)) ?? value;
+  }
+
+  function lookup(hash, context) {
+    const hashString = String(hash);
+
+    /*
+     * Try the current context first.
+     */
+    if (context) {
+      const contextMap = tunableByContext.get(context);
+
+      if (contextMap) {
+        const name = contextMap.get(hashString);
+
+        if (name) {
+          return name;
+        }
+      }
+    }
+
+    /*
+     * Try all known contexts.
+     */
+    for (const contextMap of tunableByContext.values()) {
+      const name = contextMap.get(hashString);
+
+      if (name) {
+        return name;
+      }
+    }
+
+    /*
+     * Try the generic reverse dictionary.
+     */
+    const otherName = otherByValue.get(hashString);
+
+    if (otherName) {
+      return otherName;
+    }
+
+    /*
+     * Job-specific lookup.
+     */
+    if (platform && platform.toLowerCase().includes('pc')) {
+      const jobsName = dictionary.jobs[hashString];
+
+      if (jobsName) {
+        return String(jobsName).toUpperCase();
+      }
+    }
+
     return null;
   }
 
-  const dictionary =
-    await buildDictionary(
-      config
+  function resolveObject(value, context, depth = 0) {
+    if (depth > 50) {
+      return value;
+    }
+
+    if (typeof value === 'number') {
+      return resolveValue(value);
+    }
+
+    if (Array.isArray(value)) {
+      return value.map(item =>
+        resolveObject(item, context, depth + 1)
+      );
+    }
+
+    if (!value || typeof value !== 'object') {
+      return value;
+    }
+
+    const result = {};
+
+    for (const [key, item] of Object.entries(value)) {
+      let nextContext = context;
+
+      if (
+        typeof item === 'string' &&
+        item.length > 0
+      ) {
+        const upperKey = key.toUpperCase();
+
+        if (
+          upperKey.includes('CONTEXT') ||
+          upperKey.includes('TUNABLE')
+        ) {
+          nextContext = item.toUpperCase();
+        }
+      }
+
+      result[key] = resolveObject(
+        item,
+        nextContext,
+        depth + 1
+      );
+    }
+
+    return result;
+  }
+
+  function resolve(tunables) {
+    const result = {};
+
+    let processed = 0;
+    let resolved = 0;
+
+    const entries = Object.entries(tunables);
+    const total = entries.length;
+
+    console.log(
+      `[RESOLVER] Starting value resolution: ${total} entries`
     );
+
+    /*
+     * Do not keep context from a previous call.
+     */
+    let previousContext = null;
+
+    for (const [key, value] of entries) {
+      const upperKey = String(key).toUpperCase();
+
+      /*
+       * Determine a useful context from the key.
+       */
+      const parts = upperKey.split('_');
+
+      if (parts.length >= 2) {
+        previousContext = `${parts[0]}_${parts[1]}`;
+      } else if (parts.length === 1) {
+        previousContext = parts[0];
+      }
+
+      const cacheKey = `${previousContext || ''}:${upperKey}`;
+
+      if (cache.has(cacheKey)) {
+        result[key] = cache.get(cacheKey);
+        processed++;
+        continue;
+      }
+
+      let resolvedKey = lookup(
+        joaatSigned(upperKey),
+        previousContext
+      );
+
+      if (!resolvedKey) {
+        resolvedKey = lookup(
+          joaat(upperKey),
+          previousContext
+        );
+      }
+
+      if (resolvedKey) {
+        resolved++;
+        cache.set(cacheKey, resolvedKey);
+        result[resolvedKey] = resolveObject(
+          value,
+          previousContext
+        );
+      } else {
+        cache.set(cacheKey, upperKey);
+        result[upperKey] = resolveObject(
+          value,
+          previousContext
+        );
+      }
+
+      processed++;
+
+      if (
+        processed % 5000 === 0 ||
+        processed === total
+      ) {
+        console.log(
+          `[RESOLVER] Progress: ${processed}/${total} ` +
+          `(${resolved} resolved)`
+        );
+      }
+    }
+
+    console.log(
+      `[RESOLVER] Resolution complete: ` +
+      `${processed} entries processed, ` +
+      `${resolved} resolved`
+    );
+
+    return result;
+  }
+
+  return {
+    resolve,
+    lookup,
+    resolveValue
+  };
+}
+
+async function getResolver(config, platform) {
+  /*
+   * Download/build the dictionary only ONCE per Node process.
+   *
+   * All 10 targets share the same dictionary.
+   */
+  if (!dictionaryPromise) {
+    dictionaryPromise = buildDictionary(config).catch(error => {
+      dictionaryPromise = null;
+      throw error;
+    });
+  }
+
+  const dictionary = await dictionaryPromise;
+
+  /*
+   * Build the expensive indexes only ONCE.
+   */
+  if (!indexesPromise) {
+    indexesPromise = Promise.resolve(
+      buildIndexes(dictionary)
+    ).catch(error => {
+      indexesPromise = null;
+      throw error;
+    });
+  }
+
+  const indexes = await indexesPromise;
 
   return makeResolver(
     dictionary,
+    indexes,
     platform
   );
 }
 
 module.exports = {
-  getResolver,
-  CONTEXTS
+  getResolver
 };
