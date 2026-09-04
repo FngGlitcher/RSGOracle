@@ -1,8 +1,21 @@
+js
 const DISCORD_API_BASE =
   'https://discord.com/api/v10';
 
 const DEFAULT_TIMEOUT =
   15000;
+
+function getTitleDisplayName(title) {
+  const names = {
+    gta5: 'GTA5',
+    gta6: 'GTA6'
+  };
+
+  return (
+    names[String(title).toLowerCase()] ||
+    title
+  );
+}
 
 function getPlatformDisplayName(title, platform) {
   const gta5Names = {
@@ -259,6 +272,9 @@ function formatUpdate({
       {}
     );
 
+  const displayTitle =
+    getTitleDisplayName(title);
+
   const displayPlatform =
     getPlatformDisplayName(
       title,
@@ -266,7 +282,7 @@ function formatUpdate({
     );
 
   return [
-    `**Tunables ${title} ${displayPlatform} Updated at ${formatDetectionTime(detectedAt)}**`,
+    `**Tunables ${displayTitle} ${displayPlatform} Updated at ${formatDetectionTime(detectedAt)}**`,
 
     `Last modified: \`${lastModified || 'unknown'}\``,
 
@@ -289,6 +305,9 @@ function formatFirstSeen({
   previousSize,
   currentSize
 }) {
+  const displayTitle =
+    getTitleDisplayName(title);
+
   const displayPlatform =
     getPlatformDisplayName(
       title,
@@ -296,7 +315,7 @@ function formatFirstSeen({
     );
 
   return [
-    `**Tunables ${title} ${displayPlatform} First seen at ${formatDetectionTime(detectedAt)}**`,
+    `**Tunables ${displayTitle} ${displayPlatform} First seen at ${formatDetectionTime(detectedAt)}**`,
 
     `Last modified: \`${lastModified || 'unknown'}\``,
 
@@ -315,6 +334,9 @@ function formatRecovery({
   lastModified,
   detectedAt
 }) {
+  const displayTitle =
+    getTitleDisplayName(title);
+
   const displayPlatform =
     getPlatformDisplayName(
       title,
@@ -322,7 +344,7 @@ function formatRecovery({
     );
 
   return [
-    `**Tunables ${title} ${displayPlatform} Available Again at ${formatDetectionTime(detectedAt)}**`,
+    `**Tunables ${displayTitle} ${displayPlatform} Available Again at ${formatDetectionTime(detectedAt)}**`,
 
     `Last modified: \`${lastModified || 'unknown'}\``
   ]
