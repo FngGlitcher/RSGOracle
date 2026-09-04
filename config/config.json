@@ -29,6 +29,14 @@
     "gta_labels_url": "https://raw.githubusercontent.com/root-cause/v-labels/master/TextKeys.txt",
     "jobs_dictionary_url": "https://raw.githubusercontent.com/Troplo/GTAV-Tunables/master/src/static/jobs_dictionary.json"
   },
+  "background_scripts": {
+    "enabled": true,
+    "build_window": 50,
+    "sub_window": 100,
+    "concurrency": 100,
+    "timeout_ms": 10000,
+    "url_template": "http://prod.cloud.rockstargames.com/titles/{title}/{platform}/bgscripts/bg_ng_{build}_{sub}.rpf"
+  },
   "titles": {
     "gta5": {
       "enabled": true,
@@ -36,42 +44,101 @@
         "pcros": {
           "enabled": true,
           "platform_path": "pcros",
-          "decrypt": true
+          "decrypt": true,
+          "background_script": {
+            "enabled": true,
+            "build": 3889,
+            "sub": 0,
+            "current": "3889_0"
+          }
         },
         "pcrosalt": {
           "enabled": true,
           "platform_path": "pcrosalt",
-          "decrypt": true
+          "decrypt": true,
+          "background_script": {
+            "enabled": true,
+            "build": 1158,
+            "sub": 13,
+            "current": "1158_13"
+          }
         },
         "ps4": {
           "enabled": true,
-          "platform_path": "ps4",
-          "decrypt": true
+          "platform_path": "PS4",
+          "decrypt": true,
+          "background_script": {
+            "enabled": true,
+            "build": 3889,
+            "sub": 0,
+            "current": "3889_0"
+          }
         },
         "ps5": {
           "enabled": true,
-          "platform_path": "ps5",
-          "decrypt": true
+          "platform_path": "PS5",
+          "decrypt": true,
+          "background_script": {
+            "enabled": true,
+            "build": 1158,
+            "sub": 14,
+            "current": "1158_14"
+          }
         },
         "xboxone": {
           "enabled": true,
           "platform_path": "xboxone",
-          "decrypt": true
+          "decrypt": true,
+          "background_script": {
+            "enabled": true,
+            "build": 3889,
+            "sub": 0,
+            "current": "3889_0"
+          }
         },
         "xboxsx": {
           "enabled": true,
           "platform_path": "xboxsx",
-          "decrypt": true
+          "decrypt": true,
+          "background_script": {
+            "enabled": true,
+            "build": 1158,
+            "sub": 13,
+            "current": "1158_13"
+          }
+        },
+        "ps6": {
+          "enabled": true,
+          "platform_path": "ps6",
+          "decrypt": true,
+          "background_script": {
+            "enabled": false,
+            "build": 0,
+            "sub": 0,
+            "current": "0_0"
+          }
         },
         "ps3": {
           "enabled": true,
           "platform_path": "ps3",
-          "decrypt": false
+          "decrypt": false,
+          "background_script": {
+            "enabled": false,
+            "build": 0,
+            "sub": 0,
+            "current": "0_0"
+          }
         },
         "xbox360": {
           "enabled": true,
           "platform_path": "xbox360",
-          "decrypt": false
+          "decrypt": false,
+          "background_script": {
+            "enabled": false,
+            "build": 0,
+            "sub": 0,
+            "current": "0_0"
+          }
         }
       }
     },
@@ -80,15 +147,48 @@
       "endpoints": {
         "ps5": {
           "enabled": true,
-          "platform_path": "ps5",
+          "platform_path": "PS5",
           "first_seen": true,
-          "decrypt": true
+          "decrypt": true,
+          "background_script": {
+            "enabled": false,
+            "build": 0,
+            "sub": 0,
+            "current": "0_0"
+          }
+        },
+        "xboxsx": {
+          "enabled": true,
+          "platform_path": "xboxsx",
+          "decrypt": true,
+          "background_script": {
+            "enabled": false,
+            "build": 0,
+            "sub": 0,
+            "current": "0_0"
+          }
+        },
+        "pcros": {
+          "enabled": true,
+          "platform_path": "pcros",
+          "decrypt": true,
+          "background_script": {
+            "enabled": false,
+            "build": 0,
+            "sub": 0,
+            "current": "0_0"
+          }
         },
         "ps6": {
           "enabled": true,
           "platform_path": "ps6",
-          "first_seen": true,
-          "decrypt": true
+          "decrypt": true,
+          "background_script": {
+            "enabled": false,
+            "build": 0,
+            "sub": 0,
+            "current": "0_0"
+          }
         }
       }
     }
