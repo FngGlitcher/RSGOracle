@@ -1,4 +1,3 @@
-js
 const fs = require('fs');
 const path = require('path');
 const { loadConfig, getTargets, ROOT } = require('./lib/config');
@@ -17,13 +16,16 @@ async function main() {
   const targets = getTargets(config);
   const notifications = [];
 
-  // Track whether the state needs to be saved.
   let stateDirty = false;
 
   console.log(`Checking ${targets.length} configured targets...`);
 
   for (const target of targets) {
     try {
+      console.log(
+        `Starting ${target.title}/${target.platform}...`
+      );
+
       const event = await processTarget(target, config, state);
 
       if (!['unchanged', 'unavailable'].includes(event.event)) {
@@ -55,28 +57,49 @@ async function main() {
         `${target.title}/${target.platform}: ERROR: ${error.message}`
       );
 
-      // Continue processing the other targets instead of
-      // stopping the entire workflow immediately.
+      if (error.stack) {
+        console.error(error.stack);
+      }
+
       process.exitCode = 1;
     }
   }
 
   if (stateDirty) {
     saveState(state);
+    console.log('State saved.');
+  } else {
+    console.log('No state changes to save.');
   }
 
-  fs.mkdirSync(
-    path.join(ROOT, 'data', 'state'),
-    { recursive: true }
+  const stateDir = path.join(ROOT, 'data', 'state');
+
+  fs.mkdirSync(stateDir, {
+    recursive: true
+  });
+
+  const notificationsPath = path.join(
+    stateDir,
+    'pending-notifications.json'
   );
 
   fs.writeFileSync(
-    path.join(ROOT, 'data', 'state', 'pending-notifications.json'),
-    JSON.stringify(notifications, null, 2) + '\n'
+    notificationsPath,
+    JSON.stringify(notifications, null, 2) + '\n',
+    'utf8'
+  );
+
+  console.log(
+    `Pending notifications written: ${notifications.length}`
   );
 }
 
 main().catch(error => {
-  console.error(error);
+  console.error('Fatal error:', error);
+
+  if (error.stack) {
+    console.error(error.stack);
+  }
+
   process.exit(1);
 });
