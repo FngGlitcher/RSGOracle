@@ -2,7 +2,7 @@
   "enabled": true,
   "polling": {
     "interval_minutes": 30,
-    "timeout_ms": 30000,
+    "timeout_ms": 15000,
     "retry_count": 1
   },
   "features": {
