@@ -3,7 +3,7 @@
   "polling": {
     "interval_minutes": 30,
     "timeout_ms": 30000,
-    "retry_count": 2
+    "retry_count": 1
   },
   "features": {
     "updates": true,
