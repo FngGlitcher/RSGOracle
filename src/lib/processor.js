@@ -91,6 +91,7 @@ function historyPath(target, timestamp) {
     ROOT,
     'history',
     safeName(target.title),
+    'tunable',
     `${safeName(target.platform)}-${timestamp}.json`
   );
 }
