@@ -1,4 +1,3 @@
-js
 const DISCORD_API_BASE =
   'https://discord.com/api/v10';
 
@@ -16,14 +15,16 @@ async function discordRequest(
     );
   }
 
+  const timeout =
+    options.timeout ?? DEFAULT_TIMEOUT;
+
   const controller =
     new AbortController();
 
   const timer =
     setTimeout(
       () => controller.abort(),
-      options.timeout ??
-        DEFAULT_TIMEOUT
+      timeout
     );
 
   try {
@@ -80,7 +81,7 @@ async function discordRequest(
       'AbortError'
     ) {
       throw new Error(
-        `Discord API timeout after ${options.timeout ?? DEFAULT_TIMEOUT}ms: ${url}`
+        `Discord API timeout after ${timeout}ms: ${url}`
       );
     }
 
@@ -143,7 +144,7 @@ async function sendDM({
   );
 
   const message =
-    content.slice(
+    String(content).slice(
       0,
       2000
     );
@@ -214,7 +215,7 @@ function formatUpdate({
     );
 
   return [
-    `🔄 **Tunables ${title.toUpperCase()} ${platform.toUpperCase()} Updated**`,
+    `🔄 **Tunables ${title} ${platform} Updated**`,
 
     `Last modified: \`${lastModified || 'unknown'}\``,
 
@@ -235,7 +236,7 @@ function formatFirstSeen({
   changelogUrl
 }) {
   return [
-    `🆕 **Tunables ${title.toUpperCase()} ${platform.toUpperCase()} First seen**`,
+    `🆕 **Tunables ${title} ${platform} First seen**`,
 
     `Last modified: \`${lastModified || 'unknown'}\``,
 
@@ -256,7 +257,7 @@ function formatRecovery({
   fileUrl
 }) {
   return [
-    `🟢 **Tunables ${title.toUpperCase()} ${platform.toUpperCase()} Available Again**`,
+    `🟢 **Tunables ${title} ${platform} Available Again**`,
 
     `Last modified: \`${lastModified || 'unknown'}\``,
 
