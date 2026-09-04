@@ -4,6 +4,72 @@ const DISCORD_API_BASE =
 const DEFAULT_TIMEOUT =
   15000;
 
+function getPlatformDisplayName(title, platform) {
+  const gta5Names = {
+    ps4: 'PS4',
+    xboxone: 'XboxOne',
+    pcros: 'PC Legacy',
+    ps5: 'PS5',
+    xboxsx: 'Xbox Series X|S',
+    pcrosalt: 'PC Enhanced',
+    ps6: 'PS6'
+  };
+
+  const gta6Names = {
+    pcros: 'PC',
+    ps5: 'PS5',
+    xboxsx: 'Xbox Series X|S',
+    ps6: 'PS6'
+  };
+
+  const names =
+    String(title).toLowerCase() === 'gta6'
+      ? gta6Names
+      : gta5Names;
+
+  return names[platform] || platform;
+}
+
+function formatDetectionTime(value) {
+  if (!value) {
+    return 'unknown';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return date.toLocaleTimeString('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    timeZone: 'Europe/Paris'
+  });
+}
+
+function formatSize(value) {
+  return Number.isFinite(Number(value))
+    ? Number(value)
+    : null;
+}
+
+function formatSizeLine(previousSize, currentSize) {
+  const previous = formatSize(previousSize);
+  const current = formatSize(currentSize);
+
+  if (previous === null || current === null) {
+    return null;
+  }
+
+  const difference = current - previous;
+  const sign = difference > 0 ? '+' : '';
+
+  return `Size: ${previous} → ${current} bytes (${sign}${difference})`;
+}
+
 async function discordRequest(
   token,
   url,
@@ -173,35 +239,14 @@ async function sendDM({
   return result;
 }
 
-function discordLinks({
-  changelogUrl,
-  fileUrl
-}) {
-  const links = [];
-
-  if (changelogUrl) {
-    links.push(
-      `[View changelog](${changelogUrl})`
-    );
-  }
-
-  if (fileUrl) {
-    links.push(
-      `[View current file](${fileUrl})`
-    );
-  }
-
-  return links.join(
-    ' • '
-  );
-}
-
 function formatUpdate({
   title,
   platform,
   lastModified,
   changes,
-  changelogUrl
+  detectedAt,
+  previousSize,
+  currentSize
 }) {
   const counts =
     changes.reduce(
@@ -214,16 +259,23 @@ function formatUpdate({
       {}
     );
 
+  const displayPlatform =
+    getPlatformDisplayName(
+      title,
+      platform
+    );
+
   return [
-    `🔄 **Tunables ${title} ${platform} Updated**`,
+    `**Tunables ${title} ${displayPlatform} Updated at ${formatDetectionTime(detectedAt)}**`,
 
     `Last modified: \`${lastModified || 'unknown'}\``,
 
-    `Changes: +${counts.added || 0} ~${counts.changed || 0} -${counts.removed || 0}`,
+    formatSizeLine(
+      previousSize,
+      currentSize
+    ),
 
-    discordLinks({
-      changelogUrl
-    })
+    `Changes: +${counts.added || 0} ~${counts.changed || 0} -${counts.removed || 0}`
   ]
     .filter(Boolean)
     .join('\n');
@@ -233,18 +285,25 @@ function formatFirstSeen({
   title,
   platform,
   lastModified,
-  changelogUrl
+  detectedAt,
+  previousSize,
+  currentSize
 }) {
+  const displayPlatform =
+    getPlatformDisplayName(
+      title,
+      platform
+    );
+
   return [
-    `🆕 **Tunables ${title} ${platform} First seen**`,
+    `**Tunables ${title} ${displayPlatform} First seen at ${formatDetectionTime(detectedAt)}**`,
 
     `Last modified: \`${lastModified || 'unknown'}\``,
 
-    'This endpoint is now available and has entered the normal processing pipeline.',
-
-    discordLinks({
-      changelogUrl
-    })
+    formatSizeLine(
+      previousSize,
+      currentSize
+    )
   ]
     .filter(Boolean)
     .join('\n');
@@ -254,16 +313,18 @@ function formatRecovery({
   title,
   platform,
   lastModified,
-  fileUrl
+  detectedAt
 }) {
+  const displayPlatform =
+    getPlatformDisplayName(
+      title,
+      platform
+    );
+
   return [
-    `🟢 **Tunables ${title} ${platform} Available Again**`,
+    `**Tunables ${title} ${displayPlatform} Available Again at ${formatDetectionTime(detectedAt)}**`,
 
-    `Last modified: \`${lastModified || 'unknown'}\``,
-
-    discordLinks({
-      fileUrl
-    })
+    `Last modified: \`${lastModified || 'unknown'}\``
   ]
     .filter(Boolean)
     .join('\n');
