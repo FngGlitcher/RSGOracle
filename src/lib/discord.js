@@ -295,6 +295,7 @@ function formatUpdate({
   title,
   platform,
   lastModified,
+  previousLastModified,
   changes,
   detectedAt,
   previousSize,
@@ -323,6 +324,7 @@ function formatUpdate({
   return [
     `**Tunables ${displayTitle} ${displayPlatform} Updated at ${formatDetectionTime(detectedAt)}**`,
     `Last modified: \`${lastModified || 'unknown'}\``,
+    `Prev last modified: \`${previousLastModified || 'unknown'}\``,
     formatSizeLine(
       previousSize,
       currentSize
