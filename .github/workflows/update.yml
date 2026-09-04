@@ -65,4 +65,3 @@ steps:
       GITHUB_REPOSITORY: ${{ github.repository }}
       GITHUB_REF_NAME: ${{ github.ref_name }}
     run: node src/notify.js
-```
