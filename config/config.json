@@ -33,7 +33,7 @@
     "enabled": true,
     "build_window": 25,
     "sub_window": 50,
-    "concurrency": 150,
+    "concurrency": 100,
     "timeout_ms": 30000,
     "url_template": "http://prod.cloud.rockstargames.com/titles/{title}/{platform}/bgscripts/bg_ng_{build}_{sub}.rpf"
   },
