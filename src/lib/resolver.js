@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const { joaat } = require('./joaat');
+const joaat = require('./joaat');
 
 const ROOT_DIR = path.resolve(__dirname, '../..');
 
