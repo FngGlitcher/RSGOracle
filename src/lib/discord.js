@@ -1,4 +1,3 @@
-```js
 const fs = require('fs');
 const path = require('path');
 
@@ -108,6 +107,20 @@ function formatNewswirePostedTime(value) {
       timeZone: 'Europe/Paris'
     }
   );
+}
+
+function formatNewswireLastModified(value) {
+  if (!value) {
+    return 'unknown';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return date.toUTCString();
 }
 
 function formatSize(value) {
@@ -685,6 +698,7 @@ function formatNewswireArticle({
   return [
     `**New post detected at ${formatDetectionTime(detectedAt)}**`,
     `**Posted at** ${formatNewswirePostedTime(date)}`,
+    `Last modified **${formatNewswireLastModified(date)}**`,
     titleLink
   ].join('\n');
 }
@@ -699,4 +713,3 @@ module.exports = {
   formatBackgroundUpdated,
   formatNewswireArticle
 };
-```
