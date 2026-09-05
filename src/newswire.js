@@ -71,67 +71,6 @@ function writeJson(file, data) {
   );
 }
 
-function decodeHtml(value) {
-  if (!value) {
-    return "";
-  }
-
-  return String(value)
-    .replace(
-      /\\\//g,
-      "/"
-    )
-    .replace(
-      /&amp;/gi,
-      "&"
-    )
-    .replace(
-      /&quot;/gi,
-      '"'
-    )
-    .replace(
-      /&#39;/gi,
-      "'"
-    )
-    .replace(
-      /&apos;/gi,
-      "'"
-    )
-    .replace(
-      /&lt;/gi,
-      "<"
-    )
-    .replace(
-      /&gt;/gi,
-      ">"
-    )
-    .replace(
-      /&#x2F;/gi,
-      "/"
-    )
-    .replace(
-      /&#47;/gi,
-      "/"
-    )
-    .replace(
-      /&#x27;/gi,
-      "'"
-    )
-    .replace(
-      /&#34;/gi,
-      '"'
-    )
-    .replace(
-      /<[^>]+>/g,
-      " "
-    )
-    .replace(
-      /\s+/g,
-      " "
-    )
-    .trim();
-}
-
 function normalizeUrl(value) {
   if (!value) {
     return null;
@@ -143,10 +82,6 @@ function normalizeUrl(value) {
       .replace(
         /\\\//g,
         "/"
-      )
-      .replace(
-        /\\\\/g,
-        ""
       );
 
   if (
@@ -192,15 +127,10 @@ function normalizeDate(value) {
     return null;
   }
 
-  const text =
-    String(value).trim();
-
-  if (!text) {
-    return null;
-  }
-
   const date =
-    new Date(text);
+    new Date(
+      String(value).trim()
+    );
 
   if (
     Number.isNaN(
@@ -213,355 +143,187 @@ function normalizeDate(value) {
   return date.toISOString();
 }
 
-const MONTHS = {
-  january: 0,
-  february: 1,
-  march: 2,
-  april: 3,
-  may: 4,
-  june: 5,
-  july: 6,
-  august: 7,
-  september: 8,
-  october: 9,
-  november: 10,
-  december: 11,
-
-  janvier: 0,
-  février: 1,
-  fevrier: 1,
-  mars: 2,
-  avril: 3,
-  mai: 4,
-  juin: 5,
-  juillet: 6,
-  août: 7,
-  aout: 7,
-  septembre: 8,
-  octobre: 9,
-  novembre: 10,
-  décembre: 11,
-  decembre: 11
-};
-
-function parseHumanDate(value) {
+function cleanTitle(value) {
   if (!value) {
     return null;
   }
 
-  const text =
+  const title =
     String(value)
+      .replace(
+        /&amp;/gi,
+        "&"
+      )
+      .replace(
+        /&quot;/gi,
+        '"'
+      )
+      .replace(
+        /&#39;/gi,
+        "'"
+      )
+      .replace(
+        /&apos;/gi,
+        "'"
+      )
+      .replace(
+        /&lt;/gi,
+        "<"
+      )
+      .replace(
+        /&gt;/gi,
+        ">"
+      )
       .replace(
         /\s+/g,
         " "
       )
       .trim();
 
-  let match =
-    text.match(
-      /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s+(20\d{2})\b/i
-    );
-
-  if (match) {
-    const month =
-      MONTHS[
-        match[1].toLowerCase()
-      ];
-
-    const day =
-      Number(match[2]);
-
-    const year =
-      Number(match[3]);
-
-    return new Date(
-      Date.UTC(
-        year,
-        month,
-        day
-      )
-    ).toISOString();
-  }
-
-  match =
-    text.match(
-      /\b(\d{1,2})\s+(janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre)\s+(20\d{2})\b/i
-    );
-
-  if (match) {
-    const day =
-      Number(match[1]);
-
-    const month =
-      MONTHS[
-        match[2].toLowerCase()
-      ];
-
-    const year =
-      Number(match[3]);
-
-    return new Date(
-      Date.UTC(
-        year,
-        month,
-        day
-      )
-    ).toISOString();
-  }
-
-  return null;
-}
-
-function findDateInText(text) {
-  if (!text) {
+  if (
+    !title ||
+    /^access denied$/i.test(title)
+  ) {
     return null;
   }
 
-  const iso =
-    text.match(
-      /\b20\d{2}-\d{2}-\d{2}(?:T[0-9:.+-]+Z?)?\b/
-    );
-
-  if (iso) {
-    const parsed =
-      normalizeDate(
-        iso[0]
-      );
-
-    if (parsed) {
-      return parsed;
-    }
-  }
-
-  const english =
-    text.match(
-      /\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+20\d{2}\b/i
-    );
-
-  if (english) {
-    return parseHumanDate(
-      english[0]
-    );
-  }
-
-  const french =
-    text.match(
-      /\b\d{1,2}\s+(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre)\s+20\d{2}\b/i
-    );
-
-  if (french) {
-    return parseHumanDate(
-      french[0]
-    );
-  }
-
-  return null;
+  return title;
 }
 
-function extractMeta(
-  html,
-  names
+function extractArticleObjects(
+  value,
+  results,
+  seen
 ) {
-  for (
-    const name of names
+  if (!value) {
+    return;
+  }
+
+  if (
+    typeof value ===
+    "string"
   ) {
-    const escaped =
-      name.replace(
-        /[.*+?^${}()|[\]\\]/g,
-        "\\$&"
-      );
+    return;
+  }
 
-    const patterns = [
-      new RegExp(
-        `<meta[^>]+(?:name|property)=["']${escaped}["'][^>]+content=["']([^"']+)["'][^>]*>`,
-        "i"
-      ),
-
-      new RegExp(
-        `<meta[^>]+content=["']([^"']+)["'][^>]+(?:name|property)=["']${escaped}["'][^>]*>`,
-        "i"
-      )
-    ];
-
+  if (
+    Array.isArray(value)
+  ) {
     for (
-      const pattern of patterns
+      const item of value
     ) {
-      const match =
-        html.match(
-          pattern
-        );
-
-      if (match) {
-        return decodeHtml(
-          match[1]
-        );
-      }
-    }
-  }
-
-  return null;
-}
-
-function extractJsonLdDates(
-  html
-) {
-  let published = null;
-  let modified = null;
-
-  const blocks =
-    html.match(
-      /<script[^>]+type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi
-    ) || [];
-
-  for (
-    const block of blocks
-  ) {
-    const body =
-      block
-        .replace(
-          /<script[^>]*>/i,
-          ""
-        )
-        .replace(
-          /<\/script>$/i,
-          ""
-        )
-        .trim();
-
-    try {
-      const json =
-        JSON.parse(body);
-
-      const values =
-        Array.isArray(json)
-          ? json
-          : [json];
-
-      for (
-        const item of values
-      ) {
-        if (
-          !published &&
-          item &&
-          item.datePublished
-        ) {
-          published =
-            normalizeDate(
-              item.datePublished
-            );
-        }
-
-        if (
-          !modified &&
-          item &&
-          item.dateModified
-        ) {
-          modified =
-            normalizeDate(
-              item.dateModified
-            );
-        }
-      }
-    } catch {
-      const publishedMatch =
-        body.match(
-          /"datePublished"\s*:\s*"([^"]+)"/i
-        );
-
-      const modifiedMatch =
-        body.match(
-          /"dateModified"\s*:\s*"([^"]+)"/i
-        );
-
-      if (
-        !published &&
-        publishedMatch
-      ) {
-        published =
-          normalizeDate(
-            publishedMatch[1]
-          );
-      }
-
-      if (
-        !modified &&
-        modifiedMatch
-      ) {
-        modified =
-          normalizeDate(
-            modifiedMatch[1]
-          );
-      }
-    }
-  }
-
-  return {
-    published,
-    modified
-  };
-}
-
-function extractArticleLinks(
-  html,
-  limit
-) {
-  const results = [];
-  const seen = new Set();
-
-  const source =
-    String(html || "")
-      .replace(
-        /\\\//g,
-        "/"
+      extractArticleObjects(
+        item,
+        results,
+        seen
       );
+    }
 
-  const patterns = [
-    /https?:\/\/(?:www\.)?rockstargames\.com\/(?:[a-z]{2}\/)?newswire\/article\/[A-Za-z0-9]+\/[A-Za-z0-9_-]+/gi,
+    return;
+  }
 
-    /\/(?:[a-z]{2}\/)?newswire\/article\/[A-Za-z0-9]+\/[A-Za-z0-9_-]+/gi
+  if (
+    typeof value !==
+    "object"
+  ) {
+    return;
+  }
+
+  const possibleUrls = [
+    value.url,
+    value.link,
+    value.href,
+    value.path,
+    value.slug
   ];
 
+  let url = null;
+
   for (
-    const pattern of patterns
+    const candidate of
+      possibleUrls
   ) {
-    let match;
-
-    while (
-      (match =
-        pattern.exec(source)) &&
-      results.length <
-        limit + 1
-    ) {
-      const url =
-        normalizeUrl(
-          match[0]
-        );
-
-      if (
-        !isArticleUrl(url) ||
-        seen.has(url)
-      ) {
-        continue;
-      }
-
-      seen.add(url);
-
-      results.push({
-        title: null,
-        url,
-        date: null
-      });
-    }
+    const normalized =
+      normalizeUrl(
+        candidate
+      );
 
     if (
-      results.length >=
-      limit + 1
+      isArticleUrl(
+        normalized
+      )
     ) {
+      url =
+        normalized;
+
       break;
     }
   }
 
-  return results;
+  if (url) {
+    const title =
+      cleanTitle(
+        value.title ||
+        value.name ||
+        value.headline ||
+        value.label
+      );
+
+    const date =
+      normalizeDate(
+        value.date ||
+        value.datePublished ||
+        value.publishedAt ||
+        value.published_at ||
+        value.createdAt ||
+        value.created_at
+      );
+
+    const updatedAt =
+      normalizeDate(
+        value.updatedAt ||
+        value.updated_at ||
+        value.dateModified ||
+        value.modifiedAt ||
+        value.modified_at
+      );
+
+    if (
+      title &&
+      !seen.has(url)
+    ) {
+      seen.add(url);
+
+      results.push({
+        title,
+        url,
+        date,
+        updatedAt,
+        lastModified:
+          null
+      });
+    }
+  }
+
+  for (
+    const [key, child] of
+      Object.entries(value)
+  ) {
+    if (
+      key ===
+        "extensions" ||
+      key ===
+        "headers"
+    ) {
+      continue;
+    }
+
+    extractArticleObjects(
+      child,
+      results,
+      seen
+    );
+  }
 }
 
 async function launchBrowser() {
@@ -592,7 +354,7 @@ async function fetchNewswire(
       await browser.newPage();
 
     await page.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36 RSGOracle"
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/151.0.0.0 Safari/537.36"
     );
 
     await page.setViewport({
@@ -604,6 +366,63 @@ async function fetchNewswire(
       "accept-language":
         "en-US,en;q=0.9"
     });
+
+    const graphqlPayloads =
+      [];
+
+    const graphqlUrls =
+      new Set();
+
+    page.on(
+      "response",
+      async response => {
+        try {
+          const url =
+            response.url();
+
+          if (
+            !/graph\.rockstargames\.com/i.test(
+              url
+            )
+          ) {
+            return;
+          }
+
+          graphqlUrls.add(url);
+
+          const contentType =
+            response
+              .headers()[
+              "content-type"
+            ] || "";
+
+          if (
+            !contentType.includes(
+              "json"
+            )
+          ) {
+            return;
+          }
+
+          const text =
+            await response.text();
+
+          if (!text) {
+            return;
+          }
+
+          try {
+            graphqlPayloads.push(
+              JSON.parse(text)
+            );
+          } catch {
+            // Ignore non-JSON GraphQL responses.
+          }
+        } catch {
+          // Ignore destroyed/aborted responses.
+        }
+      }
+    );
 
     await page.goto(
       NEWSWIRE_URL,
@@ -629,93 +448,284 @@ async function fetchNewswire(
       resolve =>
         setTimeout(
           resolve,
-          2500
+          3000
         )
     );
 
-    const links =
-      await page.evaluate(() => {
-        const anchors =
-          Array.from(
-            document.querySelectorAll(
-              "a[href]"
-            )
-          );
-
-        const output = [];
-        const seen = new Set();
-
-        for (
-          const anchor of anchors
-        ) {
-          const href =
-            anchor.href || "";
-
-          if (
-            !/rockstargames\.com\/(?:[a-z]{2}\/)?newswire\/article\//i.test(
-              href
-            )
-          ) {
-            continue;
-          }
-
-          try {
-            const parsed =
-              new URL(href);
-
-            parsed.hash = "";
-            parsed.search = "";
-
-            const url =
-              parsed.toString();
-
-            if (
-              seen.has(url)
-            ) {
-              continue;
-            }
-
-            seen.add(url);
-
-            const title =
-              (
-                anchor.textContent ||
-                anchor.getAttribute(
-                  "aria-label"
-                ) ||
-                ""
-              )
-                .replace(
-                  /\s+/g,
-                  " "
-                )
-                .trim();
-
-            output.push({
-              url,
-              title:
-                title || null
-            });
-          } catch {
-            // Ignore invalid links.
-          }
-        }
-
-        return output;
-      });
-
     console.log(
-      `[NEWSWIRE] Article links detected: ${links.length}`
+      `[NEWSWIRE] GraphQL responses detected: ${graphqlPayloads.length}`
     );
 
-    if (!links.length) {
-      throw new Error(
-        "No Newswire article links found after browser rendering."
+    console.log(
+      `[NEWSWIRE] GraphQL endpoints detected: ${graphqlUrls.size}`
+    );
+
+    const graphqlArticles =
+      [];
+
+    const graphqlSeen =
+      new Set();
+
+    for (
+      const payload of
+        graphqlPayloads
+    ) {
+      extractArticleObjects(
+        payload,
+        graphqlArticles,
+        graphqlSeen
       );
     }
 
+    if (
+      graphqlArticles.length
+    ) {
+      console.log(
+        `[NEWSWIRE] Articles recovered from GraphQL: ${graphqlArticles.length}`
+      );
+    }
+
+    /*
+     * Fallback:
+     * Rockstar currently renders the article cards in the page itself.
+     * We use those cards only if GraphQL extraction did not return
+     * usable article objects.
+     */
+    let articles =
+      graphqlArticles;
+
+    if (
+      !articles.length
+    ) {
+      const domArticles =
+        await page.evaluate(
+          () => {
+            const anchors =
+              Array.from(
+                document.querySelectorAll(
+                  "a[href]"
+                )
+              );
+
+            const output =
+              [];
+
+            const seen =
+              new Set();
+
+            for (
+              const anchor of
+                anchors
+            ) {
+              const href =
+                anchor.href ||
+                "";
+
+              if (
+                !/rockstargames\.com\/(?:[a-z]{2}\/)?newswire\/article\//i.test(
+                  href
+                )
+              ) {
+                continue;
+              }
+
+              try {
+                const parsed =
+                  new URL(
+                    href
+                  );
+
+                parsed.hash =
+                  "";
+
+                parsed.search =
+                  "";
+
+                const url =
+                  parsed.toString();
+
+                if (
+                  seen.has(url)
+                ) {
+                  continue;
+                }
+
+                seen.add(url);
+
+                let container =
+                  anchor;
+
+                for (
+                  let i = 0;
+                  i < 6 &&
+                  container;
+                  i++
+                ) {
+                  const text =
+                    (
+                      container.textContent ||
+                      ""
+                    )
+                      .replace(
+                        /\s+/g,
+                        " "
+                      )
+                      .trim();
+
+                  if (
+                    text.length >
+                      20 &&
+                    text.length <
+                      1000
+                  ) {
+                    break;
+                  }
+
+                  container =
+                    container.parentElement;
+                }
+
+                const text =
+                  (
+                    container
+                      ?.textContent ||
+                    anchor.textContent ||
+                    ""
+                  )
+                    .replace(
+                      /\s+/g,
+                      " "
+                    )
+                    .trim();
+
+                const title =
+                  (
+                    anchor.textContent ||
+                    anchor.getAttribute(
+                      "aria-label"
+                    ) ||
+                    ""
+                  )
+                    .replace(
+                      /\s+/g,
+                      " "
+                    )
+                    .trim();
+
+                const dateMatch =
+                  text.match(
+                    /\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+20\d{2}\b/i
+                  );
+
+                output.push({
+                  url,
+                  title:
+                    title || null,
+                  text,
+                  dateText:
+                    dateMatch
+                      ? dateMatch[0]
+                      : null
+                });
+              } catch {
+                // Ignore invalid links.
+              }
+            }
+
+            return output;
+          }
+        );
+
+      articles =
+        domArticles
+          .map(
+            article => ({
+              title:
+                cleanTitle(
+                  article.title
+                ),
+              url:
+                normalizeUrl(
+                  article.url
+                ),
+              date:
+                normalizeDate(
+                  article.dateText
+                ),
+              updatedAt:
+                null,
+              lastModified:
+                null
+            })
+          )
+          .filter(
+            article =>
+              article.title &&
+              isArticleUrl(
+                article.url
+              )
+          );
+    }
+
+    const unique =
+      [];
+
+    const seen =
+      new Set();
+
+    for (
+      const article of
+        articles
+    ) {
+      if (
+        !article ||
+        !article.url ||
+        !isArticleUrl(
+          article.url
+        ) ||
+        seen.has(
+          article.url
+        )
+      ) {
+        continue;
+      }
+
+      if (
+        !article.title ||
+        /^access denied$/i.test(
+          article.title
+        )
+      ) {
+        continue;
+      }
+
+      seen.add(
+        article.url
+      );
+
+      unique.push(
+        article
+      );
+    }
+
+    console.log(
+      `[NEWSWIRE] Article links detected: ${unique.length}`
+    );
+
+    if (
+      !unique.length
+    ) {
+      throw new Error(
+        "No valid Newswire articles found."
+      );
+    }
+
+    /*
+     * Rockstar puts the featured article first.
+     * Ignore it and take the next N real articles.
+     */
     const candidates =
-      links.slice(
+      unique.slice(
         1,
         latestArticles + 1
       );
@@ -724,218 +734,28 @@ async function fetchNewswire(
       `[NEWSWIRE] Ignoring first featured result, checking ${candidates.length} latest articles.`
     );
 
-    const articles = [];
-
     for (
-      const item of candidates
+      const article of
+        candidates
     ) {
-      try {
-        const articlePage =
-          await browser.newPage();
+      console.log(
+        `[NEWSWIRE] ${article.title}`
+      );
 
-        await articlePage.setUserAgent(
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36 RSGOracle"
-        );
+      console.log(
+        `[NEWSWIRE] Published: ${article.date || "unknown"}`
+      );
 
-        let response = null;
+      console.log(
+        `[NEWSWIRE] Last-Modified header: ${article.lastModified || "unknown"}`
+      );
 
-        try {
-          response =
-            await articlePage.goto(
-              item.url,
-              {
-                waitUntil:
-                  "domcontentloaded",
-                timeout: 60000
-              }
-            );
-        } catch (error) {
-          console.log(
-            `[NEWSWIRE] Article navigation warning for ${item.url}: ${error.message}`
-          );
-        }
-
-        try {
-          await articlePage.waitForNetworkIdle({
-            idleTime: 1000,
-            timeout: 15000
-          });
-        } catch {
-          // Page can still contain the required metadata.
-        }
-
-        await new Promise(
-          resolve =>
-            setTimeout(
-              resolve,
-              1000
-            )
-        );
-
-        const articleHtml =
-          await articlePage.content();
-
-        const jsonLd =
-          extractJsonLdDates(
-            articleHtml
-          );
-
-        const publishedMeta =
-          extractMeta(
-            articleHtml,
-            [
-              "article:published_time",
-              "datePublished",
-              "publication_date",
-              "published_time"
-            ]
-          );
-
-        const modifiedMeta =
-          extractMeta(
-            articleHtml,
-            [
-              "article:modified_time",
-              "dateModified",
-              "modified_time"
-            ]
-          );
-
-        const titleMeta =
-          extractMeta(
-            articleHtml,
-            [
-              "og:title",
-              "twitter:title"
-            ]
-          );
-
-        const visibleTitle =
-          await articlePage.evaluate(
-            () => {
-              const selectors = [
-                "h1",
-                "article h1",
-                "[data-testid='article-title']",
-                "[class*='article-title']"
-              ];
-
-              for (
-                const selector of selectors
-              ) {
-                const element =
-                  document.querySelector(
-                    selector
-                  );
-
-                if (
-                  element &&
-                  element.textContent
-                ) {
-                  const text =
-                    element.textContent
-                      .replace(
-                        /\s+/g,
-                        " "
-                      )
-                      .trim();
-
-                  if (text) {
-                    return text;
-                  }
-                }
-              }
-
-              return null;
-            }
-          );
-
-        const title =
-          titleMeta ||
-          visibleTitle ||
-          item.title ||
-          "Newswire";
-
-        const date =
-          jsonLd.published ||
-          normalizeDate(
-            publishedMeta
-          ) ||
-          parseHumanDate(
-            publishedMeta
-          ) ||
-          null;
-
-        const updatedAt =
-          jsonLd.modified ||
-          normalizeDate(
-            modifiedMeta
-          ) ||
-          parseHumanDate(
-            modifiedMeta
-          ) ||
-          null;
-
-        const lastModified =
-          response &&
-          response.headers
-            ? response.headers()[
-                "last-modified"
-              ] || null
-            : null;
-
-        articles.push({
-          title,
-          url:
-            item.url,
-          date,
-          updatedAt,
-          lastModified
-        });
-
-        console.log(
-          `[NEWSWIRE] ${title}`
-        );
-
-        console.log(
-          `[NEWSWIRE] Published: ${date || "unknown"}`
-        );
-
-        console.log(
-          `[NEWSWIRE] Last-Modified header: ${lastModified || "unknown"}`
-        );
-
-        console.log(
-          `[NEWSWIRE] Updated: ${updatedAt || "unknown"}`
-        );
-
-        await articlePage.close();
-      } catch (error) {
-        console.log(
-          `[NEWSWIRE] Failed to read article ${item.url}: ${error.message}`
-        );
-
-        articles.push({
-          title:
-            item.title ||
-            "Newswire",
-
-          url:
-            item.url,
-
-          date:
-            null,
-
-          updatedAt:
-            null,
-
-          lastModified:
-            null
-        });
-      }
+      console.log(
+        `[NEWSWIRE] Updated: ${article.updatedAt || "unknown"}`
+      );
     }
 
-    return articles;
+    return candidates;
   } finally {
     await browser.close();
   }
@@ -955,24 +775,20 @@ function normalizeState(
     };
   }
 
-  const articles =
-    Array.isArray(
-      state.articles
-    )
-      ? state.articles
-      : [];
-
-  const knownUrls =
-    Array.isArray(
-      state.known_urls
-    )
-      ? state.known_urls
-      : [];
-
   return {
-    articles,
+    articles:
+      Array.isArray(
+        state.articles
+      )
+        ? state.articles
+        : [],
+
     known_urls:
-      knownUrls
+      Array.isArray(
+        state.known_urls
+      )
+        ? state.known_urls
+        : []
   };
 }
 
@@ -1101,51 +917,10 @@ function migrateOldState(
     );
   }
 
-  const migrated =
-    normalizeState(
-      null
-    );
-
-  if (
-    rawState &&
-    typeof rawState ===
-      "object" &&
-    rawState.url &&
-    isArticleUrl(
-      rawState.url
-    )
-  ) {
-    migrated.articles.push({
-      title:
-        rawState.title ||
-        "Newswire",
-
-      url:
-        normalizeUrl(
-          rawState.url
-        ),
-
-      date:
-        rawState.date ||
-        null,
-
-      last_modified:
-        rawState.last_modified ||
-        null,
-
-      updated_at:
-        rawState.updated_at ||
-        null
-    });
-
-    migrated.known_urls.push(
-      normalizeUrl(
-        rawState.url
-      )
-    );
-  }
-
-  return migrated;
+  return {
+    articles: [],
+    known_urls: []
+  };
 }
 
 async function main() {
@@ -1157,7 +932,8 @@ async function main() {
 
     const configuredLimit =
       Number(
-        config?.newswire?.latest_articles
+        config?.newswire
+          ?.latest_articles
       );
 
     const latestArticles =
@@ -1268,8 +1044,7 @@ async function main() {
             "newswire_new_post",
 
           title:
-            article.title ||
-            "Newswire",
+            article.title,
 
           url:
             article.url,
@@ -1301,7 +1076,7 @@ async function main() {
         }
 
         console.log(
-          `[NEWSWIRE] New article detected: ${article.title || article.url}`
+          `[NEWSWIRE] New article detected: ${article.title}`
         );
       }
 
