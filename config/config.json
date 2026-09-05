@@ -65,7 +65,7 @@
         },
         "ps4": {
           "enabled": true,
-          "platform_path": "PS4",
+          "platform_path": "ps4",
           "decrypt": true,
           "background_script": {
             "enabled": true,
@@ -76,7 +76,7 @@
         },
         "ps5": {
           "enabled": true,
-          "platform_path": "PS5",
+          "platform_path": "ps5",
           "decrypt": true,
           "background_script": {
             "enabled": true,
@@ -147,7 +147,7 @@
       "endpoints": {
         "ps5": {
           "enabled": true,
-          "platform_path": "PS5",
+          "platform_path": "ps5",
           "first_seen": true,
           "decrypt": true,
           "background_script": {
