@@ -504,7 +504,15 @@ async function fetchNewswire() {
         metaUrl:
           '/newswire',
 
-        limit: 5,
+        /*
+         * Rockstar puts the pinned/featured article
+         * at the beginning of the Newswire response.
+         *
+         * We request 6 entries so that after removing
+         * the pinned entry we still inspect 5 real
+         * latest Newswire articles.
+         */
+        limit: 6,
 
         locale:
           'en_us'
@@ -520,10 +528,47 @@ async function fetchNewswire() {
     `[NEWSWIRE] NewswireList returned ${posts.length} posts.`
   );
 
+  /*
+   * The first NewswireList result is the pinned/featured
+   * article, not necessarily the newest article by date.
+   *
+   * Ignore it completely and keep the next five posts.
+   */
+  const latestPosts =
+    posts.slice(
+      1,
+      6
+    );
+
+  if (
+    posts.length
+  ) {
+    const pinned =
+      normalizeArticle(
+        posts[0]
+      );
+
+    console.log(
+      `[NEWSWIRE] Ignoring pinned article: ${pinned?.title || 'unknown'}`
+    );
+
+    if (
+      pinned?.url
+    ) {
+      console.log(
+        `[NEWSWIRE] Pinned URL ignored: ${pinned.url}`
+      );
+    }
+  }
+
+  console.log(
+    `[NEWSWIRE] Checking ${latestPosts.length} non-pinned posts.`
+  );
+
   const articles = [];
 
   for (
-    const item of posts
+    const item of latestPosts
   ) {
     if (!item) {
       continue;
@@ -1132,7 +1177,8 @@ async function main() {
   }
 
   /*
-   * No unknown article among the five latest posts.
+   * No unknown article among the five latest
+   * non-pinned posts.
    */
   if (
     !newArticles.length
@@ -1201,9 +1247,8 @@ async function main() {
   }
 
   /*
-   * The Newswire list is normally newest-first.
-   * findNewArticles() preserves that ordering unless
-   * publication dates allow a more reliable ordering.
+   * newArticles is sorted by publication date,
+   * newest first.
    */
   const latestNew =
     newArticles[0];
@@ -1228,8 +1273,7 @@ async function main() {
 
   /*
    * Remember all URLs currently visible in the last five
-   * posts. This prevents old posts from being detected again
-   * after the primary state moves forward.
+   * non-pinned posts.
    */
   for (
     const article of normalizedArticles
