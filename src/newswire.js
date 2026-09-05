@@ -299,522 +299,417 @@ async function fetchNewswireLastModified(url) {
           method: 'HEAD',
           headers: {
             'User-Agent':
-              'RSGOracle/1.0',
-
-            Accept:
-              'text/html,application/xhtml+xml'
+              'RSGOracle-Newswire/1.0'
           }
         }
       );
 
-    let lastModified =
-      response.headers.get(
-        'last-modified'
-      );
-
-    if (!lastModified) {
+    if (
+      !response.ok
+    ) {
       response =
         await fetch(
           url,
           {
+            method: 'GET',
             headers: {
               'User-Agent':
-                'RSGOracle/1.0',
-
-              Accept:
-                'text/html,application/xhtml+xml'
+                'RSGOracle-Newswire/1.0'
             }
           }
         );
-
-      lastModified =
-        response.headers.get(
-          'last-modified'
-        );
     }
 
-    if (lastModified) {
+    if (
+      !response.ok
+    ) {
       console.log(
-        `[NEWSWIRE] last-modified: ${lastModified}`
+        `[NEWSWIRE] Unable to read HTTP metadata: ${response.status} ${response.statusText}`
       );
 
-      return lastModified;
+      return null;
     }
 
-    console.log(
-      '[NEWSWIRE] No last-modified header found.'
+    return (
+      response.headers.get(
+        'last-modified'
+      ) || null
     );
   } catch (error) {
     console.log(
       `[NEWSWIRE] Failed to read last-modified header: ${error.message}`
     );
-  }
 
-  return null;
-}
-
-function collectArticles(
-  value,
-  output
-) {
-  if (!value) {
-    return;
-  }
-
-  if (
-    Array.isArray(value)
-  ) {
-    for (
-      const item of value
-    ) {
-      collectArticles(
-        item,
-        output
-      );
-    }
-
-    return;
-  }
-
-  if (
-    typeof value !==
-    'object'
-  ) {
-    return;
-  }
-
-  const normalized =
-    normalizeArticle(
-      value
-    );
-
-  if (normalized) {
-    output.push(
-      normalized
-    );
-  }
-
-  for (
-    const child of Object.values(
-      value
-    )
-  ) {
-    if (
-      child &&
-      typeof child ===
-        'object'
-    ) {
-      collectArticles(
-        child,
-        output
-      );
-    }
+    return null;
   }
 }
 
-function graphUrl(
+async function graphqlRequest(
   operationName,
-  variables,
-  hash
+  hash,
+  variables
 ) {
-  const url =
-    new URL(
-      GRAPHQL_URL
-    );
-
-  url.searchParams.set(
-    'origin',
-    'https://www.rockstargames.com'
-  );
-
-  url.searchParams.set(
-    'operationName',
-    operationName
-  );
-
-  url.searchParams.set(
-    'variables',
-    JSON.stringify(
-      variables
-    )
-  );
-
-  url.searchParams.set(
-    'extensions',
-    JSON.stringify({
-      persistedQuery: {
-        version: 1,
-        sha256Hash:
-          hash
-      }
-    })
-  );
-
-  return url;
-}
-
-async function fetchGraphQLPersisted(
-  operationName,
-  variables,
-  hash
-) {
-  const url =
-    graphUrl(
-      operationName,
-      variables,
-      hash
-    );
-
   console.log(
     `[NEWSWIRE] GraphQL request: ${operationName}`
   );
 
   const response =
     await fetch(
-      url,
+      GRAPHQL_URL,
       {
+        method: 'POST',
+
         headers: {
+          'Content-Type':
+            'application/json',
+
           'User-Agent':
-            'RSGOracle/1.0',
+            'RSGOracle-Newswire/1.0',
 
           Accept:
-            '*/*',
+            'application/json'
+        },
 
-          Referer:
-            NEWSWIRE_URL
-        }
+        body: JSON.stringify({
+          operationName,
+
+          variables,
+
+          extensions: {
+            persistedQuery: {
+              version: 1,
+
+              sha256Hash:
+                hash
+            }
+          }
+        })
       }
     );
-
-  if (
-    !response.ok
-  ) {
-    throw new Error(
-      `GraphQL HTTP ${response.status}`
-    );
-  }
 
   const text =
     await response.text();
 
-  let json;
+  let payload;
 
   try {
-    json =
-      JSON.parse(
-        text
-      );
+    payload =
+      JSON.parse(text);
   } catch {
     throw new Error(
-      'GraphQL returned invalid JSON'
+      `Invalid GraphQL response: ${text.slice(0, 300)}`
     );
   }
-
-  if (
-    Array.isArray(
-      json.errors
-    ) &&
-    json.errors.length
-  ) {
-    const message =
-      json.errors
-        .map(
-          error =>
-            error?.message
-        )
-        .filter(Boolean)
-        .join(
-          ' | '
-        ) ||
-      'GraphQL query failed';
-
-    throw new Error(
-      message
-    );
-  }
-
-  return json;
-}
-
-async function fetchNewswireGraphQL() {
-  const list =
-    await fetchGraphQLPersisted(
-      'NewswireList',
-      {
-        tagId: 0,
-        page: 1,
-        metaUrl: '/newswire',
-        limit: 20,
-        locale: 'en_us'
-      },
-      NEWSWIRE_LIST_HASH
-    );
-
-  const results =
-    list?.data?.posts?.results;
-
-  if (
-    !Array.isArray(
-      results
-    ) ||
-    !results.length
-  ) {
-    console.log(
-      '[NEWSWIRE] NewswireList returned no posts.'
-    );
-
-    return [];
-  }
-
-  console.log(
-    `[NEWSWIRE] NewswireList returned ${results.length} posts.`
-  );
-
-  const articles =
-    [];
-
-  for (
-    const item of results
-  ) {
-    if (
-      !item ||
-      !item.id
-    ) {
-      continue;
-    }
-
-    try {
-      const post =
-        await fetchGraphQLPersisted(
-          'NewswirePost',
-          {
-            locale:
-              'en_us',
-
-            id_hash:
-              item.id
-          },
-          NEWSWIRE_POST_HASH
-        );
-
-      const article =
-        normalizeArticle({
-          ...item,
-          ...(post?.data?.post || {})
-        });
-
-      if (article) {
-        articles.push(
-          article
-        );
-      }
-    } catch (error) {
-      console.log(
-        `[NEWSWIRE] Failed to load article ${item.id}: ${error.message}`
-      );
-
-      const article =
-        normalizeArticle(
-          item
-        );
-
-      if (article) {
-        articles.push(
-          article
-        );
-      }
-    }
-  }
-
-  if (
-    articles.length
-  ) {
-    console.log(
-      `[NEWSWIRE] GraphQL articles detected: ${articles.length}`
-    );
-  }
-
-  return articles;
-}
-
-function extractHtmlArticles(
-  html
-) {
-  const articles = [];
-  const seen = new Set();
-
-  const source =
-    String(html || '');
-
-  const pattern =
-    /<a\b[^>]*href\s*=\s*["']([^"']*\/newswire\/article\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
-
-  let match;
-
-  while (
-    (match =
-      pattern.exec(
-        source
-      ))
-  ) {
-    const url =
-      normalizeUrl(
-        decodeHtml(
-          match[1]
-        )
-      );
-
-    if (
-      !url ||
-      !isNewswireArticleUrl(
-        url
-      ) ||
-      seen.has(url)
-    ) {
-      continue;
-    }
-
-    const title =
-      cleanTitle(
-        match[2]
-      );
-
-    if (
-      !title ||
-      title.length < 3
-    ) {
-      continue;
-    }
-
-    seen.add(
-      url
-    );
-
-    const position =
-      match.index;
-
-    const context =
-      source.slice(
-        Math.max(
-          0,
-          position - 3000
-        ),
-        Math.min(
-          source.length,
-          position + 5000
-        )
-      );
-
-    const dates =
-      [
-        ...context.matchAll(
-          /\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b/gi
-        )
-      ];
-
-    let date =
-      null;
-
-    for (
-      const dateMatch of dates
-    ) {
-      const parsed =
-        parseDate(
-          dateMatch[0]
-        );
-
-      if (parsed) {
-        date =
-          parsed;
-
-        break;
-      }
-    }
-
-    articles.push({
-      title,
-      url,
-      date,
-      lastModified: null,
-      updatedAt: null
-    });
-  }
-
-  return articles;
-}
-
-async function fetchNewswire() {
-  try {
-    const graphQLArticles =
-      await fetchNewswireGraphQL();
-
-    if (
-      graphQLArticles.length
-    ) {
-      return graphQLArticles;
-    }
-  } catch (error) {
-    console.log(
-      `[NEWSWIRE] GraphQL failed: ${error.message}`
-    );
-  }
-
-  console.log(
-    '[NEWSWIRE] Falling back to Newswire HTML.'
-  );
-
-  const response =
-    await fetch(
-      NEWSWIRE_URL,
-      {
-        headers: {
-          'User-Agent':
-            'RSGOracle/1.0',
-
-          Accept:
-            'text/html,application/xhtml+xml'
-        }
-      }
-    );
 
   if (
     !response.ok
   ) {
     throw new Error(
-      `Newswire HTTP ${response.status}`
+      payload?.errors?.[0]?.message ||
+      `GraphQL HTTP ${response.status}`
     );
   }
 
-  const html =
-    await response.text();
+  if (
+    payload.errors &&
+    payload.errors.length
+  ) {
+    throw new Error(
+      payload.errors
+        .map(
+          error =>
+            error.message
+        )
+        .join('; ')
+    );
+  }
 
-  return extractHtmlArticles(
-    html
-  );
+  return payload.data;
 }
 
-function selectLatestArticle(
-  articles
-) {
-  const normalized =
-    articles
-      .map(
-        normalizeArticle
-      )
-      .filter(Boolean);
+function extractPosts(data) {
+  if (!data) {
+    return [];
+  }
 
-  if (
-    !normalized.length
+  const possible =
+    [
+      data.posts?.results,
+      data.newswire?.results,
+      data.news?.results,
+      data.results,
+      data.posts,
+      data.newswire,
+      data.news
+    ];
+
+  for (
+    const value of possible
   ) {
+    if (
+      Array.isArray(value)
+    ) {
+      return value;
+    }
+  }
+
+  return [];
+}
+
+function extractPostData(data) {
+  if (!data) {
     return null;
   }
 
+  const possible =
+    [
+      data.post,
+      data.newswirePost,
+      data.newsPost,
+      data.article,
+      data.post?.data,
+      data.newswire?.post,
+      data.news?.post
+    ];
+
+  for (
+    const value of possible
+  ) {
+    if (
+      value &&
+      typeof value === 'object'
+    ) {
+      return value;
+    }
+  }
+
+  return (
+    data &&
+    typeof data === 'object'
+      ? data
+      : null
+  );
+}
+
+async function fetchNewswire() {
+  const data =
+    await graphqlRequest(
+      'NewswireList',
+      NEWSWIRE_LIST_HASH,
+      {
+        tagId: 0,
+
+        page: 1,
+
+        metaUrl:
+          '/newswire',
+
+        limit: 5,
+
+        locale:
+          'en_us'
+      }
+    );
+
+  const posts =
+    extractPosts(
+      data
+    );
+
+  console.log(
+    `[NEWSWIRE] NewswireList returned ${posts.length} posts.`
+  );
+
+  const articles = [];
+
+  for (
+    const item of posts
+  ) {
+    if (!item) {
+      continue;
+    }
+
+    const id =
+      item.id ||
+      item.id_hash ||
+      item.idHash ||
+      item.slug ||
+      item.url ||
+      item.href;
+
+    let article =
+      normalizeArticle(
+        item
+      );
+
+    /*
+     * The list response may contain only an id/path.
+     * In that case use the persisted NewswirePost query
+     * to obtain the complete article.
+     */
+    if (
+      id
+    ) {
+      try {
+        const postData =
+          await graphqlRequest(
+            'NewswirePost',
+            NEWSWIRE_POST_HASH,
+            {
+              locale:
+                'en_us',
+
+              id_hash:
+                id
+            }
+          );
+
+        const detailed =
+          extractPostData(
+            postData
+          );
+
+        const normalizedDetailed =
+          normalizeArticle(
+            detailed
+          );
+
+        if (
+          normalizedDetailed
+        ) {
+          article =
+            {
+              ...(article || {}),
+              ...normalizedDetailed
+            };
+        }
+      } catch (error) {
+        console.log(
+          `[NEWSWIRE] Failed to fetch NewswirePost ${id}: ${error.message}`
+        );
+      }
+    }
+
+    if (
+      article
+    ) {
+      articles.push(
+        article
+      );
+    }
+  }
+
+  console.log(
+    `[NEWSWIRE] GraphQL articles detected: ${articles.length}`
+  );
+
+  return articles;
+}
+
+function normalizeState(state) {
+  if (
+    !state ||
+    typeof state !== 'object'
+  ) {
+    return {
+      url: null,
+
+      title: null,
+
+      date: null,
+
+      last_modified: null,
+
+      updated_at: null,
+
+      detected_at: null,
+
+      known_urls: []
+    };
+  }
+
+  const knownUrls = [];
+
+  if (
+    Array.isArray(
+      state.known_urls
+    )
+  ) {
+    for (
+      const value of state.known_urls
+    ) {
+      const normalized =
+        normalizeUrl(
+          value
+        );
+
+      if (
+        normalized &&
+        isNewswireArticleUrl(
+          normalized
+        ) &&
+        !knownUrls.includes(
+          normalized
+        )
+      ) {
+        knownUrls.push(
+          normalized
+        );
+      }
+    }
+  }
+
+  const stateUrl =
+    normalizeUrl(
+      state.url
+    );
+
+  if (
+    stateUrl &&
+    isNewswireArticleUrl(
+      stateUrl
+    ) &&
+    !knownUrls.includes(
+      stateUrl
+    )
+  ) {
+    knownUrls.push(
+      stateUrl
+    );
+  }
+
+  return {
+    ...state,
+
+    url:
+      stateUrl &&
+      isNewswireArticleUrl(
+        stateUrl
+      )
+        ? stateUrl
+        : null,
+
+    known_urls:
+      knownUrls
+  };
+}
+
+function uniqueArticles(articles) {
   const unique =
     new Map();
 
   for (
-    const article of normalized
+    const rawArticle of articles
   ) {
+    const article =
+      normalizeArticle(
+        rawArticle
+      );
+
+    if (!article) {
+      continue;
+    }
+
     const existing =
       unique.get(
         article.url
@@ -862,31 +757,132 @@ function selectLatestArticle(
     }
   }
 
-  const dated =
-    [
-      ...unique.values()
-    ].filter(
-      article =>
-        article.date
+  return [
+    ...unique.values()
+  ];
+}
+
+function sortArticles(articles) {
+  return [
+    ...articles
+  ].sort(
+    (a, b) => {
+      if (
+        a.date &&
+        b.date
+      ) {
+        return (
+          Date.parse(
+            b.date
+          ) -
+          Date.parse(
+            a.date
+          )
+        );
+      }
+
+      if (
+        a.date &&
+        !b.date
+      ) {
+        return -1;
+      }
+
+      if (
+        !a.date &&
+        b.date
+      ) {
+        return 1;
+      }
+
+      return 0;
+    }
+  );
+}
+
+function findNewArticles(
+  articles,
+  state
+) {
+  const normalizedState =
+    normalizeState(
+      state
     );
 
-  if (
-    !dated.length
+  const knownUrls =
+    new Set(
+      normalizedState.known_urls
+    );
+
+  const normalizedArticles =
+    sortArticles(
+      uniqueArticles(
+        articles
+      )
+    );
+
+  const knownDate =
+    parseDate(
+      normalizedState.date
+    );
+
+  const newArticles = [];
+
+  for (
+    const article of normalizedArticles
   ) {
-    return null;
+    if (
+      knownUrls.has(
+        article.url
+      )
+    ) {
+      continue;
+    }
+
+    /*
+     * If the old state has a valid publication date but
+     * its URL was previously corrupted, recognize the
+     * matching current article as already known.
+     */
+    if (
+      knownDate &&
+      article.date &&
+      article.date ===
+        knownDate
+    ) {
+      knownUrls.add(
+        article.url
+      );
+
+      continue;
+    }
+
+    newArticles.push(
+      article
+    );
   }
 
-  dated.sort(
-    (a, b) =>
-      Date.parse(
-        b.date
-      ) -
-      Date.parse(
-        a.date
-      )
-  );
+  return {
+    normalizedState,
 
-  return dated[0];
+    normalizedArticles,
+
+    newArticles
+  };
+}
+
+function readNotifications() {
+  const value =
+    readJson(
+      NOTIFICATIONS_FILE,
+      []
+    );
+
+  return Array.isArray(
+    value
+  )
+    ? value
+    : [];
 }
 
 function addNotification(
@@ -894,14 +890,30 @@ function addNotification(
   detectedAt
 ) {
   const notifications =
-    readJson(
-      NOTIFICATIONS_FILE,
-      []
+    readNotifications();
+
+  const exists =
+    notifications.some(
+      notification =>
+        normalizeUrl(
+          notification.url
+        ) ===
+        article.url
     );
 
+  if (
+    exists
+  ) {
+    console.log(
+      `[NEWSWIRE] Notification already queued: ${article.url}`
+    );
+
+    return false;
+  }
+
   notifications.push({
-    event:
-      'newswire_new_article',
+    type:
+      'newswire_new_post',
 
     title:
       article.title,
@@ -926,6 +938,110 @@ function addNotification(
     NOTIFICATIONS_FILE,
     notifications
   );
+
+  console.log(
+    `[NEWSWIRE] Notification queued: ${article.title || article.url}`
+  );
+
+  return true;
+}
+
+function formatDetectionTime(value) {
+  const date =
+    new Date(
+      value
+    );
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return 'unknown';
+  }
+
+  return date.toLocaleTimeString(
+    'en-US',
+    {
+      hour12:
+        false
+    }
+  );
+}
+
+function formatNewswirePostedTime(value) {
+  if (!value) {
+    return 'unknown';
+  }
+
+  const date =
+    new Date(
+      value
+    );
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return 'unknown';
+  }
+
+  return date.toLocaleTimeString(
+    'en-US',
+    {
+      hour12:
+        false,
+
+      timeZone:
+        'UTC'
+    }
+  );
+}
+
+function formatNewswireDate(value) {
+  if (!value) {
+    return 'unknown';
+  }
+
+  const date =
+    new Date(
+      value
+    );
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return String(
+      value
+    );
+  }
+
+  return date.toUTCString();
+}
+
+function formatNewswireDiscord(
+  article,
+  detectedAt
+) {
+  const title =
+    article.title ||
+    'Untitled Newswire article';
+
+  const titleLink =
+    article.url
+      ? `[${title}](${article.url})`
+      : title;
+
+  return [
+    `**New post detected at ${formatDetectionTime(detectedAt)}**`,
+    `Posted at **${formatNewswirePostedTime(article.date)}**`,
+    `Last modified **${formatNewswireDate(article.lastModified)}**`,
+    `Last update **${formatNewswireDate(article.updatedAt)}**`,
+    titleLink
+  ].join('\n');
 }
 
 async function main() {
@@ -966,161 +1082,206 @@ async function main() {
     `[NEWSWIRE] Articles detected: ${articles.length}`
   );
 
-  const latest =
-    selectLatestArticle(
-      articles
-    );
-
-  if (!latest) {
-    console.log(
-      '[NEWSWIRE] No dated Newswire article could be detected.'
-    );
-
-    return;
-  }
-
-  latest.lastModified =
-    await fetchNewswireLastModified(
-      latest.url
-    );
-
-  console.log(
-    `[NEWSWIRE] Latest article: ${latest.title}`
-  );
-
-  console.log(
-    `[NEWSWIRE] Published: ${latest.date}`
-  );
-
-  console.log(
-    `[NEWSWIRE] Last modified: ${latest.lastModified || 'unknown'}`
-  );
-
-  console.log(
-    `[NEWSWIRE] Last update: ${latest.updatedAt || 'unknown'}`
-  );
-
-  console.log(
-    `[NEWSWIRE] URL: ${latest.url}`
-  );
-
-  const state =
+  const rawState =
     readJson(
       STATE_FILE,
       null
     );
 
-  if (!state) {
-    writeJson(
-      STATE_FILE,
-      {
-        url:
-          latest.url,
+  const {
+    normalizedState,
+    normalizedArticles,
+    newArticles
+  } =
+    findNewArticles(
+      articles,
+      rawState
+    );
 
-        title:
-          latest.title,
+  /*
+   * Only fetch HTTP last-modified for articles that
+   * are not already known.
+   */
+  for (
+    const article of newArticles
+  ) {
+    article.lastModified =
+      await fetchNewswireLastModified(
+        article.url
+      );
 
-        date:
-          latest.date,
-
-        last_modified:
-          latest.lastModified,
-
-        updated_at:
-          latest.updatedAt,
-
-        detected_at:
-          detectedAt
-      }
+    console.log(
+      `[NEWSWIRE] New candidate: ${article.title || article.url}`
     );
 
     console.log(
-      '[NEWSWIRE] Initial state saved. No notification sent.'
+      `[NEWSWIRE] Published: ${article.date || 'unknown'}`
     );
 
-    return;
+    console.log(
+      `[NEWSWIRE] Last modified: ${article.lastModified || 'unknown'}`
+    );
+
+    console.log(
+      `[NEWSWIRE] Last update: ${article.updatedAt || 'unknown'}`
+    );
+
+    console.log(
+      `[NEWSWIRE] URL: ${article.url}`
+    );
   }
 
+  /*
+   * No unknown article among the five latest posts.
+   */
   if (
-    state.url ===
-    latest.url
+    !newArticles.length
   ) {
-    if (
-      state.date !==
-      latest.date ||
-      state.last_modified !==
-      latest.lastModified ||
-      state.updated_at !==
-      latest.updatedAt ||
-      state.title !==
-      latest.title
-    ) {
-      writeJson(
-        STATE_FILE,
-        {
-          ...state,
-
-          title:
-            latest.title,
-
-          date:
-            latest.date,
-
-          last_modified:
-            latest.lastModified,
-
-          updated_at:
-            latest.updatedAt
-        }
-      );
-    }
-
     console.log(
       '[NEWSWIRE] No new article.'
     );
 
+    /*
+     * Repair an old state containing a publication date
+     * but a broken/truncated URL.
+     */
+    if (
+      normalizedState.date &&
+      normalizedState.url === null
+    ) {
+      const matching =
+        normalizedArticles.find(
+          article =>
+            article.date &&
+            article.date ===
+              normalizedState.date
+        );
+
+      if (
+        matching
+      ) {
+        writeJson(
+          STATE_FILE,
+          {
+            ...normalizedState,
+
+            url:
+              matching.url,
+
+            title:
+              matching.title,
+
+            date:
+              matching.date,
+
+            last_modified:
+              matching.lastModified,
+
+            updated_at:
+              matching.updatedAt,
+
+            known_urls:
+              [
+                ...new Set([
+                  ...normalizedState.known_urls,
+
+                  matching.url
+                ])
+              ]
+          }
+        );
+
+        console.log(
+          '[NEWSWIRE] Existing state URL repaired.'
+        );
+      }
+    }
+
     return;
   }
 
-  addNotification(
-    latest,
-    detectedAt
-  );
+  /*
+   * The Newswire list is normally newest-first.
+   * findNewArticles() preserves that ordering unless
+   * publication dates allow a more reliable ordering.
+   */
+  const latestNew =
+    newArticles[0];
+
+  /*
+   * Queue every unknown article so that multiple posts
+   * published between two runs are not lost.
+   */
+  for (
+    const article of newArticles
+  ) {
+    addNotification(
+      article,
+      detectedAt
+    );
+  }
+
+  const knownUrls =
+    new Set(
+      normalizedState.known_urls
+    );
+
+  /*
+   * Remember all URLs currently visible in the last five
+   * posts. This prevents old posts from being detected again
+   * after the primary state moves forward.
+   */
+  for (
+    const article of normalizedArticles
+  ) {
+    knownUrls.add(
+      article.url
+    );
+  }
 
   writeJson(
     STATE_FILE,
     {
       url:
-        latest.url,
+        latestNew.url,
 
       title:
-        latest.title,
+        latestNew.title,
 
       date:
-        latest.date,
+        latestNew.date,
 
       last_modified:
-        latest.lastModified,
+        latestNew.lastModified,
 
       updated_at:
-        latest.updatedAt,
+        latestNew.updatedAt,
 
       detected_at:
-        detectedAt
+        detectedAt,
+
+      known_urls:
+        [
+          ...knownUrls
+        ].slice(
+          0,
+          25
+        )
     }
   );
 
   console.log(
-    '[NEWSWIRE] New article detected and notification queued.'
+    `[NEWSWIRE] ${newArticles.length} new article(s) detected and notification queued.`
   );
 }
 
 main().catch(
   error => {
     console.error(
-      `[NEWSWIRE] Fatal error: ${error.message}`
+      `[NEWSWIRE] Fatal error: ${error.stack || error.message}`
     );
 
-    process.exit(1);
+    process.exitCode =
+      1;
   }
 );
