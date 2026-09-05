@@ -33,15 +33,16 @@ const CONFIG_PATH = path.join(
 );
 
 function loadConfig() {
-  const content = fs.readFileSync(CONFIG_PATH, 'utf8');
+  const content = fs.readFileSync(
+    CONFIG_PATH,
+    'utf8'
+  );
+
   return JSON.parse(content);
 }
 
 function getResolverConfig(config) {
-  return (
-    config.resolver ||
-    {}
-  );
+  return config.resolver || {};
 }
 
 function splitLines(text) {
@@ -52,15 +53,19 @@ function splitLines(text) {
 }
 
 async function downloadText(url) {
-  const response = await http.get(url);
+  const response = await http.request(url);
 
-  if (!response || !response.content) {
+  if (!response || !response.ok) {
     throw new Error(
-      `Empty response while downloading ${url}`
+      `HTTP ${response ? response.status : 'unknown'} while downloading ${url}`
     );
   }
 
-  return response.content.toString('utf8');
+  const body = Buffer.from(
+    await response.arrayBuffer()
+  );
+
+  return body.toString('utf8');
 }
 
 function parseTunableNames(text) {
@@ -112,7 +117,9 @@ function buildContexts(tunables, contextNames) {
       const sum = (
         tunableHash +
         contextHash
-      ).toString(16).toUpperCase();
+      )
+        .toString(16)
+        .toUpperCase();
 
       tunable.sum[context] = sum;
     }
@@ -136,7 +143,10 @@ function parseGtaDictionary(text) {
     }
 
     const hash = parts[0].trim();
-    const key = parts.slice(1).join('\t').trim();
+    const key = parts
+      .slice(1)
+      .join('\t')
+      .trim();
 
     if (!hash || !key) {
       continue;
@@ -273,28 +283,36 @@ async function main() {
   );
 
   const tunableNamesText =
-    await downloadText(tunableNamesUrl);
+    await downloadText(
+      tunableNamesUrl
+    );
 
   console.log(
     '[dictionary] Downloading gtaDictionary...'
   );
 
   const gtaDictionaryText =
-    await downloadText(gtaDictionaryUrl);
+    await downloadText(
+      gtaDictionaryUrl
+    );
 
   console.log(
     '[dictionary] Downloading gtaLabels...'
   );
 
   const gtaLabelsText =
-    await downloadText(gtaLabelsUrl);
+    await downloadText(
+      gtaLabelsUrl
+    );
 
   console.log(
     '[dictionary] Downloading jobsDictionary...'
   );
 
   const jobsDictionaryText =
-    await downloadText(jobsDictionaryUrl);
+    await downloadText(
+      jobsDictionaryUrl
+    );
 
   console.log(
     `[dictionary] tunableNames: ${Buffer.byteLength(
