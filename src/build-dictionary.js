@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
-const { joaat } = require('./lib/joaat');
+const joaat = require('./lib/joaat');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 
