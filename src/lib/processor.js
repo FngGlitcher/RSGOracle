@@ -191,6 +191,117 @@ function unavailable(
   };
 }
 
+function loadJobsDictionary() {
+  const file = path.join(
+    ROOT,
+    'data',
+    'dictionaries',
+    'dictionary-jobs.json'
+  );
+
+  if (!fs.existsSync(file)) {
+    return {};
+  }
+
+  try {
+    const data = JSON.parse(
+      fs.readFileSync(file, 'utf8')
+    );
+
+    if (
+      !data ||
+      typeof data !== 'object'
+    ) {
+      return {};
+    }
+
+    return data;
+  } catch (error) {
+    console.warn(
+      `[JOBS] Unable to load jobs dictionary: ${error.message}`
+    );
+
+    return {};
+  }
+}
+
+function resolveContentListValue(
+  value,
+  jobsDictionary
+) {
+  if (
+    typeof value !== 'number'
+  ) {
+    return value;
+  }
+
+  const signed =
+    value | 0;
+
+  const name =
+    jobsDictionary[
+      String(signed)
+    ];
+
+  if (
+    name !== undefined &&
+    name !== null
+  ) {
+    return String(name);
+  }
+
+  return value;
+}
+
+function resolveContentLists(
+  raw
+) {
+  if (
+    !raw ||
+    !Array.isArray(
+      raw.contentlists
+    )
+  ) {
+    return raw;
+  }
+
+  const jobsDictionary =
+    loadJobsDictionary();
+
+  if (
+    !Object.keys(
+      jobsDictionary
+    ).length
+  ) {
+    return raw;
+  }
+
+  return {
+    ...raw,
+
+    contentlists:
+      raw.contentlists.map(
+        contentlist => {
+          if (
+            !Array.isArray(
+              contentlist
+            )
+          ) {
+            return contentlist;
+          }
+
+          return contentlist.map(
+            content =>
+              resolveContentListValue(
+                content,
+                jobsDictionary
+              )
+          );
+        }
+      )
+  };
+}
+
 async function resolveData(
   raw,
   config,
@@ -210,34 +321,39 @@ async function resolveData(
       target.platform
     );
 
+    let resolvedData =
+      resolveContentLists(raw);
+
     if (
-      raw &&
-      typeof raw === 'object' &&
-      raw.tunables &&
-      typeof raw.tunables === 'object'
+      resolvedData &&
+      typeof resolvedData === 'object' &&
+      resolvedData.tunables &&
+      typeof resolvedData.tunables === 'object'
     ) {
       const resolvedTunables =
-        resolver.resolve(raw.tunables);
+        resolver.resolve(
+          resolvedData.tunables
+        );
 
-      const resolved = {
-        ...raw,
+      resolvedData = {
+        ...resolvedData,
         TUNABLES: resolvedTunables
       };
 
-      delete resolved.tunables;
+      delete resolvedData.tunables;
 
       console.log(
         `[RESOLVER] Resolution completed for ${targetId(target)}`
       );
 
-      return resolved;
+      return resolvedData;
     }
 
     console.warn(
       `[RESOLVER] No normalized tunables found for ${targetId(target)}`
     );
 
-    return raw;
+    return resolvedData;
   } catch (error) {
     console.error(
       `[RESOLVER] Failed for ${targetId(target)}: ${error.message}`
