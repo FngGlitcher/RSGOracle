@@ -47,20 +47,7 @@ function parseTunableNames(textValue) {
       continue;
     }
 
-    const parts = line.split(/\s+/);
-
-    if (parts.length < 2) {
-      continue;
-    }
-
-    const hash = parts[0].trim();
-    const name = parts.slice(1).join(' ').trim();
-
-    if (!hash || !name) {
-      continue;
-    }
-
-    tunables[name] = hash;
+    tunables[line] = joaat(line).signed;
   }
 
   return tunables;
@@ -134,6 +121,74 @@ function parseJobs(textValue) {
   return parsed;
 }
 
+function normalizeHash(hash) {
+  if (
+    typeof hash === 'number' &&
+    Number.isInteger(hash)
+  ) {
+    return hash | 0;
+  }
+
+  const value =
+    String(hash)
+      .trim()
+      .replace(/^_?0x/i, '');
+
+  if (!value) {
+    return null;
+  }
+
+  if (/^[0-9a-f]+$/i.test(value)) {
+    const unsigned =
+      parseInt(value, 16) >>> 0;
+
+    return unsigned | 0;
+  }
+
+  if (/^-?\d+$/.test(value)) {
+    const number =
+      Number(value);
+
+    if (
+      Number.isSafeInteger(number)
+    ) {
+      return number | 0;
+    }
+  }
+
+  return null;
+}
+
+function addHashAliases(map, hash, value) {
+  const normalized =
+    normalizeHash(hash);
+
+  if (normalized === null) {
+    return;
+  }
+
+  const unsigned =
+    normalized >>> 0;
+
+  const signed =
+    normalized | 0;
+
+  const aliases = [
+    String(signed),
+    String(unsigned),
+    `0x${unsigned
+      .toString(16)
+      .toUpperCase()
+      .padStart(8, '0')}`
+  ];
+
+  for (const alias of aliases) {
+    if (!map.has(alias)) {
+      map.set(alias, value);
+    }
+  }
+}
+
 async function buildDictionary(config) {
   const resolverConfig = config.resolver || {};
 
@@ -161,28 +216,25 @@ async function buildDictionary(config) {
 
   console.log('[RESOLVER] Building contexts...');
 
-  const tunables = parseTunableNames(raw.names);
-  const gta = parseGtaDictionary(raw.gta);
-  const labels = parseLabels(raw.labels);
-  const jobs = parseJobs(raw.jobs);
+  const tunables =
+    parseTunableNames(raw.names);
+
+  const gta =
+    parseGtaDictionary(raw.gta);
+
+  const labels =
+    parseLabels(raw.labels);
+
+  const jobs =
+    parseJobs(raw.jobs);
 
   const other = {
     ...gta
   };
 
-  /*
-   * TextKeys.txt contains labels that must be converted to
-   * their signed JOAAT hash.
-   *
-   * joaat() returns:
-   * {
-   *   unsigned,
-   *   signed,
-   *   hex
-   * }
-   */
   for (const [name, value] of Object.entries(labels)) {
-    other[name] = joaat(value).signed;
+    other[name] =
+      joaat(value).signed;
   }
 
   const dictionary = {
@@ -206,17 +258,15 @@ function buildIndexes(dictionary) {
 
   const tunableByContext = new Map();
 
-  /*
-   * Build the tunable lookup indexes once.
-   *
-   * Each tunable is indexed under several possible contexts.
-   */
   for (const [name, hash] of Object.entries(dictionary.tunables)) {
-    const upperName = String(name).toUpperCase();
-    const hashString = String(hash);
+    const upperName =
+      String(name).toUpperCase();
 
-    const parts = upperName.split('_');
-    const contexts = new Set();
+    const parts =
+      upperName.split('_');
+
+    const contexts =
+      new Set();
 
     if (parts.length >= 1) {
       contexts.add(parts[0]);
@@ -244,43 +294,22 @@ function buildIndexes(dictionary) {
         );
       }
 
-      tunableByContext
-        .get(context)
-        .set(hashString, upperName);
+      addHashAliases(
+        tunableByContext.get(context),
+        hash,
+        upperName
+      );
     }
   }
 
-  /*
-   * CRITICAL PERFORMANCE FIX
-   *
-   * Before:
-   *
-   *   for every numeric value:
-   *     scan all ~678,000 entries
-   *
-   * That is effectively O(values * 678000).
-   *
-   * Now:
-   *
-   *   hash -> name
-   *
-   * giving an O(1) lookup.
-   */
   const otherByValue = new Map();
 
   for (const [key, hash] of Object.entries(dictionary.other)) {
-    const hashString = String(hash);
-
-    /*
-     * Preserve the first matching entry, just like the old
-     * Object.entries(...).find(...) behavior.
-     */
-    if (!otherByValue.has(hashString)) {
-      otherByValue.set(
-        hashString,
-        String(key).toUpperCase()
-      );
-    }
+    addHashAliases(
+      otherByValue,
+      hash,
+      String(key).toUpperCase()
+    );
   }
 
   console.log(
@@ -295,7 +324,11 @@ function buildIndexes(dictionary) {
   };
 }
 
-function makeResolver(dictionary, indexes, platform) {
+function makeResolver(
+  dictionary,
+  indexes,
+  platform
+) {
   const {
     tunableByContext,
     otherByValue
@@ -308,28 +341,63 @@ function makeResolver(dictionary, indexes, platform) {
       return value;
     }
 
-    /*
-     * O(1) lookup.
-     */
     return (
-      otherByValue.get(String(value)) ??
+      otherByValue.get(
+        String(value)
+      ) ??
       value
     );
   }
 
   function lookup(hash, context) {
-    const hashString = String(hash);
+    const normalized =
+      normalizeHash(hash);
 
-    /*
-     * 1. Current context.
-     */
+    if (normalized === null) {
+      return null;
+    }
+
+    const unsigned =
+      normalized >>> 0;
+
+    const signed =
+      normalized | 0;
+
+    const hex =
+      `0x${unsigned
+        .toString(16)
+        .toUpperCase()
+        .padStart(8, '0')}`;
+
+    const aliases = [
+      String(signed),
+      String(unsigned),
+      hex
+    ];
+
     if (context) {
       const contextMap =
         tunableByContext.get(context);
 
       if (contextMap) {
+        for (const alias of aliases) {
+          const name =
+            contextMap.get(alias);
+
+          if (name) {
+            return name;
+          }
+        }
+      }
+    }
+
+    for (
+      const contextMap
+      of tunableByContext.values()
+    ) {
+      for (const alias of aliases) {
         const name =
-          contextMap.get(hashString);
+          contextMap.get(alias);
 
         if (name) {
           return name;
@@ -337,40 +405,28 @@ function makeResolver(dictionary, indexes, platform) {
       }
     }
 
-    /*
-     * 2. All contexts.
-     */
-    for (const contextMap of tunableByContext.values()) {
-      const name =
-        contextMap.get(hashString);
+    for (const alias of aliases) {
+      const otherName =
+        otherByValue.get(alias);
 
-      if (name) {
-        return name;
+      if (otherName) {
+        return otherName;
       }
     }
 
-    /*
-     * 3. Generic GTA dictionary.
-     */
-    const otherName =
-      otherByValue.get(hashString);
-
-    if (otherName) {
-      return otherName;
-    }
-
-    /*
-     * 4. Jobs dictionary.
-     */
     if (
       platform &&
       platform.toLowerCase().includes('pc')
     ) {
-      const jobsName =
-        dictionary.jobs[hashString];
+      for (const alias of aliases) {
+        const jobsName =
+          dictionary.jobs[alias];
 
-      if (jobsName) {
-        return String(jobsName).toUpperCase();
+        if (jobsName) {
+          return String(
+            jobsName
+          ).toUpperCase();
+        }
       }
     }
 
@@ -409,8 +465,12 @@ function makeResolver(dictionary, indexes, platform) {
 
     const result = {};
 
-    for (const [key, item] of Object.entries(value)) {
-      let nextContext = context;
+    for (
+      const [key, item]
+      of Object.entries(value)
+    ) {
+      let nextContext =
+        context;
 
       if (
         typeof item === 'string' &&
@@ -428,11 +488,12 @@ function makeResolver(dictionary, indexes, platform) {
         }
       }
 
-      result[key] = resolveObject(
-        item,
-        nextContext,
-        depth + 1
-      );
+      result[key] =
+        resolveObject(
+          item,
+          nextContext,
+          depth + 1
+        );
     }
 
     return result;
@@ -447,7 +508,8 @@ function makeResolver(dictionary, indexes, platform) {
     const entries =
       Object.entries(tunables);
 
-    const total = entries.length;
+    const total =
+      entries.length;
 
     console.log(
       `[RESOLVER] Starting value resolution: ${total} entries`
@@ -459,46 +521,70 @@ function makeResolver(dictionary, indexes, platform) {
       const upperKey =
         String(key).toUpperCase();
 
-      const parts =
-        upperKey.split('_');
+      let resolvedKey = null;
 
-      if (parts.length >= 2) {
-        previousContext =
-          `${parts[0]}_${parts[1]}`;
-      } else if (parts.length === 1) {
-        previousContext =
-          parts[0];
+      /*
+       * Normalized tunable keys look like:
+       *
+       *   _0x12345678
+       *
+       * They are already hashes.
+       */
+      if (
+        /^_?0x[0-9a-f]+$/i.test(
+          upperKey
+        )
+      ) {
+        resolvedKey =
+          lookup(
+            upperKey,
+            previousContext
+          );
+      } else {
+        const parts =
+          upperKey.split('_');
+
+        if (parts.length >= 2) {
+          previousContext =
+            `${parts[0]}_${parts[1]}`;
+        } else if (parts.length === 1) {
+          previousContext =
+            parts[0];
+        }
+
+        resolvedKey =
+          lookup(
+            joaat(upperKey).signed,
+            previousContext
+          );
+
+        if (!resolvedKey) {
+          resolvedKey =
+            lookup(
+              joaat(upperKey).unsigned,
+              previousContext
+            );
+        }
       }
 
       const cacheKey =
         `${previousContext || ''}:${upperKey}`;
 
       if (cache.has(cacheKey)) {
-        result[key] =
+        const cached =
           cache.get(cacheKey);
 
-        processed++;
-        continue;
-      }
-
-      /*
-       * Try signed JOAAT first.
-       */
-      let resolvedKey =
-        lookup(
-          joaat(upperKey).signed,
-          previousContext
-        );
-
-      /*
-       * Then unsigned JOAAT.
-       */
-      if (!resolvedKey) {
-        resolvedKey =
-          lookup(
-            joaat(upperKey).unsigned,
+        result[
+          cached.key
+        ] =
+          resolveObject(
+            value,
             previousContext
           );
+
+        processed++;
+
+        continue;
       }
 
       if (resolvedKey) {
@@ -506,7 +592,9 @@ function makeResolver(dictionary, indexes, platform) {
 
         cache.set(
           cacheKey,
-          resolvedKey
+          {
+            key: resolvedKey
+          }
         );
 
         result[resolvedKey] =
@@ -517,7 +605,9 @@ function makeResolver(dictionary, indexes, platform) {
       } else {
         cache.set(
           cacheKey,
-          upperKey
+          {
+            key: upperKey
+          }
         );
 
         result[upperKey] =
@@ -529,9 +619,6 @@ function makeResolver(dictionary, indexes, platform) {
 
       processed++;
 
-      /*
-       * Progress every 5,000 entries.
-       */
       if (
         processed % 5000 === 0 ||
         processed === total
@@ -564,9 +651,6 @@ async function getResolver(
   config,
   platform
 ) {
-  /*
-   * Download dictionaries only once per Node process.
-   */
   if (!dictionaryPromise) {
     dictionaryPromise =
       buildDictionary(config)
@@ -579,9 +663,6 @@ async function getResolver(
   const dictionary =
     await dictionaryPromise;
 
-  /*
-   * Build resolver indexes only once.
-   */
   if (!indexesPromise) {
     indexesPromise =
       Promise.resolve(
