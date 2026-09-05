@@ -29,8 +29,35 @@ jobs:
       - name: Check JavaScript syntax
         run: npm run check
 
-      - name: Build dictionary
-        run: node src/build-dictionary.js
+      - name: Prepare dictionary
+        run: |
+          DICTIONARY_ENABLED=$(node -e "const fs=require('fs'); const c=JSON.parse(fs.readFileSync('config/config.json','utf8')); process.stdout.write(c.dictionary?.enabled === false ? 'false' : 'true');")
+          COMPILE_ON_START=$(node -e "const fs=require('fs'); const c=JSON.parse(fs.readFileSync('config/config.json','utf8')); process.stdout.write(c.dictionary?.compile_on_start === true ? 'true' : 'false');")
+
+          if [ "$DICTIONARY_ENABLED" = "false" ]; then
+            echo "[dictionary] Dictionary disabled by config."
+            exit 0
+          fi
+
+          if [ "$COMPILE_ON_START" = "true" ]; then
+            echo "[dictionary] compile_on_start enabled."
+            echo "[dictionary] Building local GTA V dictionary..."
+            node src/build-dictionary.js
+            exit 0
+          fi
+
+          if [ ! -f "data/dictionaries/dictionary-tunables.json" ] || \
+             [ ! -f "data/dictionaries/dictionary-other.json" ] || \
+             [ ! -f "data/dictionaries/dictionary-jobs.json" ]; then
+            echo "[dictionary] Existing dictionary is incomplete or missing."
+            echo "[dictionary] Building local GTA V dictionary..."
+            node src/build-dictionary.js
+            exit 0
+          fi
+
+          echo "[dictionary] compile_on_start disabled."
+          echo "[dictionary] Existing dictionary found."
+          echo "[dictionary] Using existing dictionary without recompiling."
 
       - name: Create data directories
         run: |
