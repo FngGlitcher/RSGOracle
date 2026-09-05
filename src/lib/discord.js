@@ -149,64 +149,39 @@ function loadTunablesSummary(
   );
 
   try {
-    let decryptedData = null;
-
     if (fs.existsSync(decryptedFile)) {
-      decryptedData =
+      const decryptedData =
         JSON.parse(
           fs.readFileSync(
             decryptedFile,
             'utf8'
           )
         );
-    }
 
-    const decryptedTunables =
-      decryptedData?.tunables;
-
-    if (
-      decryptedTunables &&
-      typeof decryptedTunables === 'object'
-    ) {
-      const normalizedTitle =
-        String(title).toLowerCase();
-
-      const normalizedPlatform =
-        String(platform).toLowerCase();
+      const decryptedTunables =
+        decryptedData?.tunables;
 
       if (
-        normalizedTitle === 'gta5' &&
-        normalizedPlatform === 'pcros'
+        decryptedTunables &&
+        typeof decryptedTunables === 'object'
       ) {
-        return {
-          eventWeekly:
-            decryptedTunables._0x57BBF070 ??
-            null,
+        const eventWeekly =
+          decryptedTunables._0x6F758B7B ??
+          null;
 
-          tunableVersion:
-            decryptedTunables._0xA8443DB2 ??
-            null
-        };
-      }
+        const tunableVersion =
+          decryptedTunables._0x1EED3E39 ??
+          null;
 
-      const eventWeekly =
-        decryptedTunables.EVENT_WKLY ??
-        decryptedTunables._0x6F758B7B ??
-        null;
-
-      const tunableVersion =
-        decryptedTunables.TUNABLE_VERSION ??
-        decryptedTunables._0x1EED3E39 ??
-        null;
-
-      if (
-        eventWeekly !== null ||
-        tunableVersion !== null
-      ) {
-        return {
-          eventWeekly,
-          tunableVersion
-        };
+        if (
+          eventWeekly !== null ||
+          tunableVersion !== null
+        ) {
+          return {
+            eventWeekly,
+            tunableVersion
+          };
+        }
       }
     }
 
