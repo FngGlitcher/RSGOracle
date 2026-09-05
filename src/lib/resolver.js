@@ -7,11 +7,25 @@ const joaat = require('./joaat');
 
 const ROOT_DIR = path.resolve(__dirname, '../..');
 
-const DICTIONARY_FILE = path.join(
+const DICTIONARY_DIR = path.join(
   ROOT_DIR,
   'data',
-  'dictionaries',
-  'dictionary.json'
+  'dictionaries'
+);
+
+const DICTIONARY_TUNABLES_FILE = path.join(
+  DICTIONARY_DIR,
+  'dictionary-tunables.json'
+);
+
+const DICTIONARY_OTHER_FILE = path.join(
+  DICTIONARY_DIR,
+  'dictionary-other.json'
+);
+
+const DICTIONARY_JOBS_FILE = path.join(
+  DICTIONARY_DIR,
+  'dictionary-jobs.json'
 );
 
 const OVERRIDES_FILE = path.join(
@@ -21,6 +35,47 @@ const OVERRIDES_FILE = path.join(
 );
 
 const HEX_PREFIX = /^_?0x/i;
+
+const CONTEXT_NAMES = [
+  'BASE_GLOBALS',
+  'BASE_GLOBALS_2',
+  'BASE_GLOBALS_3',
+  'BASE_GLOBALS_4',
+  'BASE_GLOBALS_5',
+  'BASE_GLOBALS_6',
+  'BASE_GLOBALS_7',
+  'BASE_GLOBALS_8',
+  'BASE_GLOBALS_9',
+  'BASE_GLOBALS_10',
+  'BASE_GLOBALS_11',
+  'BASE_GLOBALS_12',
+  'BASE_GLOBALS_13',
+  'BASE_GLOBALS_14',
+  'BASE_GLOBALS_15',
+  'BASE_GLOBALS_16',
+  'BASE_GLOBALS_17',
+  'BASE_GLOBALS_18',
+  'BASE_GLOBALS_19',
+  'BASE_GLOBALS_20',
+  'BASE_GLOBALS_21',
+  'BASE_GLOBALS_22',
+  'BASE_GLOBALS_23',
+  'BASE_GLOBALS_24',
+  'BASE_GLOBALS_25',
+  'BASE_GLOBALS_26',
+  'BASE_GLOBALS_27',
+  'BASE_GLOBALS_28',
+  'BASE_GLOBALS_29',
+  'BASE_GLOBALS_30',
+  'MP_FM_MEMBERSHIP',
+  'MP_GLOBAL',
+  'MP_GLOBAL_2',
+  'MP_GLOBAL_3',
+  'MP_GLOBAL_4',
+  'MP_GLOBAL_5',
+  'MP_GLOBAL_6',
+  'MP_GLOBAL_7'
+];
 
 function stripHexPrefix(value) {
   return String(value)
@@ -56,7 +111,10 @@ function normalizeHex(value) {
       );
     }
 
-    if (value.hex) {
+    if (
+      value.hex !== undefined &&
+      value.hex !== null
+    ) {
       return normalizeHex(
         value.hex
       );
@@ -160,6 +218,31 @@ function calculateContextHash(
   return hashInfo(signed);
 }
 
+function reverseContextHash(
+  hash,
+  contextHash
+) {
+  const value =
+    toUnsigned(hash);
+
+  const context =
+    toUnsigned(contextHash);
+
+  if (
+    value === null ||
+    context === null
+  ) {
+    return null;
+  }
+
+  return (
+    (value - context) >>> 0
+  )
+    .toString(16)
+    .toUpperCase()
+    .padStart(8, '0');
+}
+
 function loadJson(file) {
   try {
     if (
@@ -182,19 +265,80 @@ function loadJson(file) {
 }
 
 function loadDictionary() {
+  const tunablesFileExists =
+    fs.existsSync(
+      DICTIONARY_TUNABLES_FILE
+    );
+
+  const otherFileExists =
+    fs.existsSync(
+      DICTIONARY_OTHER_FILE
+    );
+
+  const jobsFileExists =
+    fs.existsSync(
+      DICTIONARY_JOBS_FILE
+    );
+
   if (
-    !fs.existsSync(
-      DICTIONARY_FILE
-    )
+    !tunablesFileExists ||
+    !otherFileExists ||
+    !jobsFileExists
   ) {
+    const missing = [];
+
+    if (!tunablesFileExists) {
+      missing.push(
+        DICTIONARY_TUNABLES_FILE
+      );
+    }
+
+    if (!otherFileExists) {
+      missing.push(
+        DICTIONARY_OTHER_FILE
+      );
+    }
+
+    if (!jobsFileExists) {
+      missing.push(
+        DICTIONARY_JOBS_FILE
+      );
+    }
+
     throw new Error(
-      `Local dictionary not found: ${DICTIONARY_FILE}. Run "node src/build-dictionary.js" first.`
+      `Local dictionary files not found: ${missing.join(', ')}. Run "node src/build-dictionary.js" first.`
     );
   }
 
-  return loadJson(
-    DICTIONARY_FILE
-  );
+  const tunablesData =
+    loadJson(
+      DICTIONARY_TUNABLES_FILE
+    );
+
+  const other =
+    loadJson(
+      DICTIONARY_OTHER_FILE
+    );
+
+  const jobs =
+    loadJson(
+      DICTIONARY_JOBS_FILE
+    );
+
+  return {
+    contexts:
+      tunablesData.contexts || {},
+
+    tunables:
+      tunablesData.tunables || {},
+
+    tunableIndex:
+      tunablesData.tunableIndex || {},
+
+    other,
+
+    jobs
+  };
 }
 
 function loadOverrides() {
@@ -243,20 +387,33 @@ function normalizeOverrides(
   return output;
 }
 
-function getContextNames(
+function buildContextIndex(
   dictionary
 ) {
-  if (
-    dictionary &&
-    dictionary.contexts &&
-    typeof dictionary.contexts === 'object'
+  const index = {};
+
+  for (
+    const [
+      context,
+      value
+    ] of Object.entries(
+      dictionary.contexts || {}
+    )
   ) {
-    return Object.keys(
-      dictionary.contexts
-    );
+    const hash =
+      toUnsigned(value);
+
+    if (
+      hash === null
+    ) {
+      continue;
+    }
+
+    index[hash] =
+      context;
   }
 
-  return [];
+  return index;
 }
 
 function getContextHash(
@@ -277,50 +434,17 @@ function getContextHash(
   );
 }
 
-function buildContextIndex(
-  dictionary
-) {
-  const index = {};
-
-  for (
-    const context of getContextNames(
-      dictionary
-    )
-  ) {
-    const hash =
-      getContextHash(
-        dictionary,
-        context
-      );
-
-    if (
-      hash === null
-    ) {
-      continue;
-    }
-
-    index[
-      hash
-    ] = context;
-  }
-
-  return index;
-}
-
 function buildTunableIndex(
   dictionary
 ) {
   const index = {};
-
-  const tunables =
-    dictionary.tunables || {};
 
   for (
     const [
       name,
       entry
     ] of Object.entries(
-      tunables
+      dictionary.tunables || {}
     )
   ) {
     if (
@@ -369,33 +493,32 @@ function buildBaseTunableIndex(
 ) {
   const index = {};
 
-  const tunables =
-    dictionary.tunables || {};
-
   for (
     const [
       name,
       entry
     ] of Object.entries(
-      tunables
+      dictionary.tunables || {}
     )
   ) {
     if (
-      entry &&
-      entry.hash
+      !entry ||
+      typeof entry !== 'object'
     ) {
-      const normalized =
-        normalizeHex(
-          entry.hash
-        );
+      continue;
+    }
 
-      if (
-        normalized &&
-        !index[normalized]
-      ) {
-        index[normalized] =
-          name;
-      }
+    const hash =
+      normalizeHex(
+        entry.hash
+      );
+
+    if (
+      hash &&
+      !index[hash]
+    ) {
+      index[hash] =
+        name;
     }
   }
 
@@ -407,15 +530,12 @@ function buildOtherIndex(
 ) {
   const index = {};
 
-  const other =
-    dictionary.other || {};
-
   for (
     const [
       hash,
       value
     ] of Object.entries(
-      other
+      dictionary.other || {}
     )
   ) {
     const normalized =
@@ -426,8 +546,8 @@ function buildOtherIndex(
     }
 
     if (
-      typeof value !== 'string' &&
-      typeof value !== 'number'
+      value === null ||
+      value === undefined
     ) {
       continue;
     }
@@ -439,20 +559,52 @@ function buildOtherIndex(
   return index;
 }
 
+function buildOtherReverseIndex(
+  otherIndex
+) {
+  const index = {};
+
+  for (
+    const [
+      hash,
+      name
+    ] of Object.entries(
+      otherIndex
+    )
+  ) {
+    const normalizedName =
+      String(name)
+        .trim()
+        .toUpperCase();
+
+    if (
+      !normalizedName
+    ) {
+      continue;
+    }
+
+    if (
+      !index[normalizedName]
+    ) {
+      index[normalizedName] =
+        hash;
+    }
+  }
+
+  return index;
+}
+
 function buildJobsIndex(
   dictionary
 ) {
   const index = {};
-
-  const jobs =
-    dictionary.jobs || {};
 
   for (
     const [
       hash,
       value
     ] of Object.entries(
-      jobs
+      dictionary.jobs || {}
     )
   ) {
     if (
@@ -516,107 +668,130 @@ function findTunableByContext(
     return null;
   }
 
-  const match =
+  return (
     matches.find(
       item =>
         item.context === context
-    );
-
-  return (
-    match ||
+    ) ||
     null
   );
 }
 
-function reverseContextHash(
-  hash,
-  contextHash
-) {
-  const value =
-    toUnsigned(hash);
-
-  const context =
-    toUnsigned(contextHash);
-
-  if (
-    value === null ||
-    context === null
-  ) {
-    return null;
-  }
-
-  return (
-    (value - context) >>> 0
-  )
-    .toString(16)
-    .toUpperCase()
-    .padStart(8, '0');
-}
-
-function resolveUsingOverrides(
-  hash,
-  overrides
-) {
-  const normalized =
-    normalizeHex(hash);
-
-  if (!normalized) {
-    return null;
-  }
-
-  return (
-    overrides[normalized] ||
-    null
-  );
-}
-
-function resolveDirectName(
-  hash,
+function findTunableBySum(
   dictionary,
-  baseIndex
+  keyWithoutPrefix,
+  context
 ) {
-  const normalized =
-    normalizeHex(hash);
-
-  if (!normalized) {
-    return null;
-  }
-
-  if (
-    baseIndex[normalized]
-  ) {
-    return {
-      name:
-        baseIndex[normalized],
-      context: null,
-      method: 'base'
-    };
-  }
-
   const tunables =
     dictionary.tunables || {};
 
-  const direct =
-    tunables[
-      normalized
-    ];
-
-  if (
-    typeof direct === 'string'
+  for (
+    const [
+      name,
+      entry
+    ] of Object.entries(
+      tunables
+    )
   ) {
-    return {
-      name: direct,
-      context: null,
-      method: 'direct'
-    };
+    const sums =
+      entry?.sum || {};
+
+    const sum =
+      sums[context];
+
+    if (
+      sum === undefined ||
+      sum === null
+    ) {
+      continue;
+    }
+
+    const normalizedSum =
+      normalizeHex(sum);
+
+    if (
+      normalizedSum ===
+      keyWithoutPrefix
+    ) {
+      return name;
+    }
+
+    if (
+      String(sum)
+        .toUpperCase()
+        .includes(
+          keyWithoutPrefix
+        )
+    ) {
+      return name;
+    }
   }
 
   return null;
 }
 
+function resolveNumericValue(
+  value,
+  otherIndex
+) {
+  if (
+    typeof value !== 'number'
+  ) {
+    return value;
+  }
+
+  const normalized =
+    normalizeHex(value);
+
+  if (!normalized) {
+    return value;
+  }
+
+  if (
+    otherIndex[normalized]
+  ) {
+    return otherIndex[normalized]
+      .toUpperCase();
+  }
+
+  return value;
+}
+
+function resolveJobValue(
+  value,
+  jobsIndex
+) {
+  if (
+    typeof value !== 'number'
+  ) {
+    return value;
+  }
+
+  const signed =
+    toSigned(value);
+
+  if (
+    signed === null
+  ) {
+    return value;
+  }
+
+  if (
+    jobsIndex[String(signed)] !==
+    undefined
+  ) {
+    return jobsIndex[
+      String(signed)
+    ];
+  }
+
+  return value;
+}
+
 function createResolver(
   dictionary,
-  overrides
+  overrides,
+  platform
 ) {
   const tunableIndex =
     buildTunableIndex(
@@ -638,15 +813,53 @@ function createResolver(
       dictionary
     );
 
+  const otherReverseIndex =
+    buildOtherReverseIndex(
+      otherIndex
+    );
+
   const jobsIndex =
     buildJobsIndex(
       dictionary
     );
 
   const contexts =
-    getContextNames(
-      dictionary
-    );
+    Object.keys(
+      dictionary.contexts || {}
+    ).length
+      ? Object.keys(
+          dictionary.contexts
+        )
+      : CONTEXT_NAMES;
+
+  let previousContext =
+    null;
+
+  function translateValue(
+    value,
+    name
+  ) {
+    let output =
+      resolveNumericValue(
+        value,
+        otherIndex
+      );
+
+    if (
+      typeof name === 'string' &&
+      name.includes(
+        'ROOT_CONTENT_ID'
+      )
+    ) {
+      output =
+        resolveJobValue(
+          value,
+          jobsIndex
+        );
+    }
+
+    return output;
+  }
 
   function resolveOne(
     key,
@@ -667,39 +880,101 @@ function createResolver(
       };
     }
 
+    const keyWithoutPrefix =
+      stripHexPrefix(key);
+
+    if (
+      keyWithoutPrefix.includes(
+        '8B7D3320'
+      )
+    ) {
+      return {
+        key: normalized,
+        value,
+        resolved: false,
+        name: null,
+        context: null,
+        method: 'ignored'
+      };
+    }
+
+    if (
+      keyWithoutPrefix.includes(
+        '52BDAF86'
+      )
+    ) {
+      return {
+        key: normalized,
+        value,
+        resolved: true,
+        name:
+          '_0x19EEFD4F',
+        context:
+          'MP_GLOBAL',
+        method:
+          'special-52BDAF86'
+      };
+    }
+
     const override =
-      resolveUsingOverrides(
-        normalized,
-        overrides
-      );
+      overrides[normalized];
 
     if (override) {
       return {
         key: normalized,
-        value,
+        value:
+          translateValue(
+            value,
+            override
+          ),
         resolved: true,
         name: override,
         context:
-          state.context || null,
+          state.context ||
+          null,
         method: 'override'
       };
     }
 
-    const direct =
-      resolveDirectName(
-        normalized,
-        dictionary,
-        baseTunableIndex
-      );
+    const baseName =
+      baseTunableIndex[
+        normalized
+      ];
 
-    if (direct) {
+    if (baseName) {
       return {
         key: normalized,
-        value,
+        value:
+          translateValue(
+            value,
+            baseName
+          ),
         resolved: true,
-        name: direct.name,
-        context: direct.context,
-        method: direct.method
+        name: baseName,
+        context: null,
+        method: 'base'
+      };
+    }
+
+    const direct =
+      dictionary.tunables[
+        normalized
+      ];
+
+    if (
+      typeof direct === 'string'
+    ) {
+      return {
+        key: normalized,
+        value:
+          translateValue(
+            value,
+            direct
+          ),
+        resolved: true,
+        name: direct,
+        context: null,
+        method: 'direct'
       };
     }
 
@@ -712,99 +987,79 @@ function createResolver(
     if (exact) {
       return {
         key: normalized,
-        value,
+        value:
+          translateValue(
+            value,
+            exact.name
+          ),
         resolved: true,
         name: exact.name,
-        context: exact.context,
+        context:
+          exact.context,
         method: 'context-hash'
       };
     }
 
-    if (
-      state.context
-    ) {
-      const contextual =
-        findTunableByContext(
-          tunableIndex,
-          normalized,
-          state.context
-        );
+    const previous =
+      state.context ||
+      previousContext;
 
-      if (contextual) {
-        return {
-          key: normalized,
-          value,
-          resolved: true,
-          name: contextual.name,
-          context:
-            contextual.context,
-          method: 'previous-context'
-        };
-      }
+    if (previous) {
+      const contextName =
+        typeof previous === 'string'
+          ? previous
+          : previous.context;
 
-      const contextHash =
-        getContextHash(
-          dictionary,
-          state.context
-        );
-
-      const reversed =
-        reverseContextHash(
-          normalized,
-          contextHash
-        );
-
-      if (reversed) {
-        const reversedMatch =
-          findTunableByContext(
-            tunableIndex,
-            calculateContextHash(
-              '__placeholder__',
-              state.context
-            )?.hex,
-            state.context
+      if (contextName) {
+        const named =
+          findTunableBySum(
+            dictionary,
+            keyWithoutPrefix,
+            contextName
           );
 
-        if (
-          reversedMatch
-        ) {
+        if (named) {
           return {
             key: normalized,
-            value,
+            value:
+              translateValue(
+                value,
+                named
+              ),
             resolved: true,
-            name:
-              reversedMatch.name,
+            name: named,
             context:
-              state.context,
+              contextName,
             method:
-              'reverse-context'
+              'previous-context'
           };
         }
 
-        const candidate =
-          Object.entries(
-            dictionary.tunables || {}
-          ).find(
-            ([
-              name,
-              entry
-            ]) =>
-              normalizeHex(
-                entry?.hash
-              ) === reversed
+        const contextHash =
+          getContextHash(
+            dictionary,
+            contextName
           );
 
-        if (
-          candidate
-        ) {
+        const reversed =
+          reverseContextHash(
+            normalized,
+            contextHash
+          );
+
+        if (reversed) {
           return {
             key: normalized,
-            value,
+            value:
+              translateValue(
+                value,
+                null
+              ),
             resolved: true,
             name:
-              candidate[0],
+              `_0x${reversed}`,
             context:
-              state.context,
+              contextName,
             method:
               'reverse-context'
           };
@@ -815,20 +1070,32 @@ function createResolver(
     for (
       const context of contexts
     ) {
-      const contextual =
-        findTunableByContext(
-          tunableIndex,
-          normalized,
+      if (
+        platform !== 'ps5' &&
+        platform !== 'xboxsx' &&
+        context ===
+          'MP_FM_MEMBERSHIP'
+      ) {
+        continue;
+      }
+
+      const named =
+        findTunableBySum(
+          dictionary,
+          keyWithoutPrefix,
           context
         );
 
-      if (contextual) {
+      if (named) {
         return {
           key: normalized,
-          value,
+          value:
+            translateValue(
+              value,
+              named
+            ),
           resolved: true,
-          name:
-            contextual.name,
+          name: named,
           context,
           method:
             'context-search'
@@ -836,29 +1103,31 @@ function createResolver(
       }
     }
 
-    if (
-      otherIndex[normalized]
-    ) {
+    const other =
+      otherIndex[normalized];
+
+    if (other) {
       return {
         key: normalized,
         value,
         resolved: true,
-        name:
-          otherIndex[normalized],
+        name: other,
         context: null,
         method: 'other'
       };
     }
 
-    if (
-      jobsIndex[normalized]
-    ) {
+    const job =
+      jobsIndex[
+        String(toSigned(normalized))
+      ];
+
+    if (job) {
       return {
         key: normalized,
         value,
         resolved: true,
-        name:
-          jobsIndex[normalized],
+        name: job,
         context: null,
         method: 'job'
       };
@@ -870,7 +1139,8 @@ function createResolver(
       resolved: false,
       name: null,
       context:
-        state.context || null,
+        state.context ||
+        null,
       method: null
     };
   }
@@ -881,7 +1151,7 @@ function createResolver(
     const output = {};
 
     let currentContext =
-      null;
+      previousContext;
 
     let resolvedCount = 0;
 
@@ -908,11 +1178,22 @@ function createResolver(
         );
 
       if (
+        result.method ===
+        'ignored'
+      ) {
+        continue;
+      }
+
+      if (
         result.resolved
       ) {
+        const outputName =
+          result.name ||
+          `_0x${normalizeHex(key)}`;
+
         output[
-          result.name
-        ] = value;
+          outputName
+        ] = result.value;
 
         resolvedCount++;
 
@@ -920,6 +1201,9 @@ function createResolver(
           result.context
         ) {
           currentContext =
+            result.context;
+
+          previousContext =
             result.context;
         }
       } else {
@@ -929,14 +1213,7 @@ function createResolver(
       }
     }
 
-    return {
-      tunables: output,
-      resolvedCount,
-      totalCount,
-      unresolvedCount:
-        totalCount -
-        resolvedCount
-    };
+    return output;
   }
 
   function resolveFlat(
@@ -955,7 +1232,9 @@ function createResolver(
     getStats() {
       return {
         contexts:
-          contexts.length,
+          Object.keys(
+            dictionary.contexts || {}
+          ).length,
 
         tunables:
           Object.keys(
@@ -970,7 +1249,10 @@ function createResolver(
         jobs:
           Object.keys(
             dictionary.jobs || {}
-          ).length
+          ).length,
+
+        resolved:
+          null
       };
     }
   };
@@ -988,21 +1270,17 @@ function getResolver(
       loadOverrides()
     );
 
-  const resolver =
-    createResolver(
-      dictionary,
-      overrides
-    );
-
-  return {
-    ...resolver,
-
+  return createResolver(
+    dictionary,
+    overrides,
     platform
-  };
+  );
 }
 
 module.exports = {
-  DICTIONARY_FILE,
+  DICTIONARY_TUNABLES_FILE,
+  DICTIONARY_OTHER_FILE,
+  DICTIONARY_JOBS_FILE,
   OVERRIDES_FILE,
   normalizeHex,
   calculateContextHash,
