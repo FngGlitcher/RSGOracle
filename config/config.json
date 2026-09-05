@@ -1,202 +1,206 @@
 {
-  "enabled": true,
-  "polling": {
-    "interval_minutes": 30,
-    "timeout_ms": 15000,
-    "retry_count": 1
-  },
-  "features": {
-    "updates": true,
-    "first_seen": true,
-    "recovery": true,
-    "save_history": true,
-    "save_encrypted": true,
-    "save_decrypted": true,
-    "generate_changelog": true,
-    "discord": true,
-    "git_commit": true,
-    "newswire": true
-  },
-  "discord": {
-    "token_env": "DISCORD_BOT_TOKEN",
-    "user_id_env": "DISCORD_USER_ID"
-  },
-  "resolver": {
-    "enabled": true,
-    "download_dictionaries": true,
-    "tunable_names_url": "https://raw.githubusercontent.com/Wildbrick142/V-Tunable-Names/main/tunable_list.txt",
-    "tuneables_processing_url": "https://raw.githubusercontent.com/root-cause/v-decompiled-scripts/master/tuneables_processing.c",
-    "gta_dictionary_url": "https://raw.githubusercontent.com/calamity-inc/gta-v-joaat-hash-db/senpai/out/dictionary-dec_signed.tsv",
-    "gta_labels_url": "https://raw.githubusercontent.com/root-cause/v-labels/master/TextKeys.txt",
-    "jobs_dictionary_url": "https://raw.githubusercontent.com/Troplo/GTAV-Tunables/master/src/static/jobs_dictionary.json"
-  },
-  "background_scripts": {
-    "enabled": true,
-    "check_new_builds": false,
-    "build_window": 25,
-    "sub_window": 50,
-    "concurrency": 100,
-    "timeout_ms": 30000,
-    "url_template": "http://prod.cloud.rockstargames.com/titles/{title}/{platform}/bgscripts/bg_ng_{build}_{sub}.rpf"
-  },
-  "titles": {
-    "gta5": {
-      "enabled": true,
-      "endpoints": {
-        "pcros": {
-          "enabled": true,
-          "platform_path": "pcros",
-          "decrypt": true,
-          "background_script": {
-            "enabled": true,
-            "build": 3889,
-            "sub": 0,
-            "current": "3889_0"
-          }
-        },
-        "pcrosalt": {
-          "enabled": true,
-          "platform_path": "pcrosalt",
-          "decrypt": true,
-          "background_script": {
-            "enabled": true,
-            "build": 1158,
-            "sub": 13,
-            "current": "1158_13"
-          }
-        },
-        "ps4": {
-          "enabled": true,
-          "platform_path": "ps4",
-          "decrypt": true,
-          "background_script": {
-            "enabled": true,
-            "build": 3889,
-            "sub": 0,
-            "current": "3889_0"
-          }
-        },
-        "ps5": {
-          "enabled": true,
-          "platform_path": "ps5",
-          "decrypt": true,
-          "background_script": {
-            "enabled": true,
-            "build": 1158,
-            "sub": 14,
-            "current": "1158_14"
-          }
-        },
-        "xboxone": {
-          "enabled": true,
-          "platform_path": "xboxone",
-          "decrypt": true,
-          "background_script": {
-            "enabled": false,
-            "build": 3889,
-            "sub": 0,
-            "current": "3889_0"
-          }
-        },
-        "xboxsx": {
-          "enabled": true,
-          "platform_path": "xboxsx",
-          "decrypt": true,
-          "background_script": {
-            "enabled": false,
-            "build": 1158,
-            "sub": 13,
-            "current": "1158_13"
-          }
-        },
-        "ps6": {
-          "enabled": true,
-          "platform_path": "ps6",
-          "decrypt": false,
-          "background_script": {
-            "enabled": false,
-            "build": 0,
-            "sub": 0,
-            "current": "0_0"
-          }
-        },
-        "ps3": {
-          "enabled": true,
-          "platform_path": "ps3",
-          "decrypt": false,
-          "background_script": {
-            "enabled": false,
-            "build": 0,
-            "sub": 0,
-            "current": "0_0"
-          }
-        },
-        "xbox360": {
-          "enabled": true,
-          "platform_path": "xbox360",
-          "decrypt": false,
-          "background_script": {
-            "enabled": false,
-            "build": 0,
-            "sub": 0,
-            "current": "0_0"
-          }
-        }
-      }
-    },
-    "gta6": {
-      "enabled": true,
-      "endpoints": {
-        "ps5": {
-          "enabled": true,
-          "platform_path": "ps5",
-          "first_seen": true,
-          "decrypt": true,
-          "background_script": {
-            "enabled": false,
-            "build": 0,
-            "sub": 0,
-            "current": "0_0"
-          }
-        },
-        "xboxsx": {
-          "enabled": true,
-          "platform_path": "xboxsx",
-          "decrypt": true,
-          "background_script": {
-            "enabled": false,
-            "build": 0,
-            "sub": 0,
-            "current": "0_0"
-          }
-        },
-        "pcros": {
-          "enabled": true,
-          "platform_path": "pcros",
-          "decrypt": true,
-          "background_script": {
-            "enabled": false,
-            "build": 0,
-            "sub": 0,
-            "current": "0_0"
-          }
-        },
-        "ps6": {
-          "enabled": true,
-          "platform_path": "ps6",
-          "decrypt": true,
-          "background_script": {
-            "enabled": false,
-            "build": 0,
-            "sub": 0,
-            "current": "0_0"
-          }
-        }
-      }
-    }
-  },
-  "source": {
-    "url_template": "http://prod.cloud.rockstargames.com/titles/{title}/{platform}/0x1a098062.json",
-    "asset": "0x1a098062"
-  }
+"enabled": true,
+"polling": {
+"interval_minutes": 30,
+"timeout_ms": 15000,
+"retry_count": 1
+},
+"features": {
+"updates": true,
+"first_seen": true,
+"recovery": true,
+"save_history": true,
+"save_encrypted": true,
+"save_decrypted": true,
+"generate_changelog": true,
+"discord": true,
+"git_commit": true,
+"newswire": true
+},
+"discord": {
+"token_env": "DISCORD_BOT_TOKEN",
+"user_id_env": "DISCORD_USER_ID"
+},
+"resolver": {
+"enabled": true,
+"download_dictionaries": true,
+"tunable_names_url": "https://raw.githubusercontent.com/Wildbrick142/V-Tunable-Names/main/tunable_list.txt",
+"tuneables_processing_url": "https://raw.githubusercontent.com/root-cause/v-decompiled-scripts/master/tuneables_processing.c",
+"gta_dictionary_url": "https://raw.githubusercontent.com/calamity-inc/gta-v-joaat-hash-db/senpai/out/dictionary-dec_signed.tsv",
+"gta_labels_url": "https://raw.githubusercontent.com/root-cause/v-labels/master/TextKeys.txt",
+"jobs_dictionary_url": "https://raw.githubusercontent.com/Troplo/GTAV-Tunables/master/src/static/jobs_dictionary.json"
+},
+"dictionary": {
+"enabled": true,
+"compile_on_start": false
+},
+"background_scripts": {
+"enabled": true,
+"check_new_builds": false,
+"build_window": 25,
+"sub_window": 50,
+"concurrency": 100,
+"timeout_ms": 30000,
+"url_template": "http://prod.cloud.rockstargames.com/titles/{title}/{platform}/bgscripts/bg_ng_{build}_{sub}.rpf"
+},
+"titles": {
+"gta5": {
+"enabled": true,
+"endpoints": {
+"pcros": {
+"enabled": true,
+"platform_path": "pcros",
+"decrypt": true,
+"background_script": {
+"enabled": true,
+"build": 3889,
+"sub": 0,
+"current": "3889_0"
+}
+},
+"pcrosalt": {
+"enabled": true,
+"platform_path": "pcrosalt",
+"decrypt": true,
+"background_script": {
+"enabled": true,
+"build": 1158,
+"sub": 13,
+"current": "1158_13"
+}
+},
+"ps4": {
+"enabled": true,
+"platform_path": "ps4",
+"decrypt": true,
+"background_script": {
+"enabled": true,
+"build": 3889,
+"sub": 0,
+"current": "3889_0"
+}
+},
+"ps5": {
+"enabled": true,
+"platform_path": "ps5",
+"decrypt": true,
+"background_script": {
+"enabled": true,
+"build": 1158,
+"sub": 14,
+"current": "1158_14"
+}
+},
+"xboxone": {
+"enabled": true,
+"platform_path": "xboxone",
+"decrypt": true,
+"background_script": {
+"enabled": false,
+"build": 3889,
+"sub": 0,
+"current": "3889_0"
+}
+},
+"xboxsx": {
+"enabled": true,
+"platform_path": "xboxsx",
+"decrypt": true,
+"background_script": {
+"enabled": false,
+"build": 1158,
+"sub": 13,
+"current": "1158_13"
+}
+},
+"ps6": {
+"enabled": true,
+"platform_path": "ps6",
+"decrypt": false,
+"background_script": {
+"enabled": false,
+"build": 0,
+"sub": 0,
+"current": "0_0"
+}
+},
+"ps3": {
+"enabled": true,
+"platform_path": "ps3",
+"decrypt": false,
+"background_script": {
+"enabled": false,
+"build": 0,
+"sub": 0,
+"current": "0_0"
+}
+},
+"xbox360": {
+"enabled": true,
+"platform_path": "xbox360",
+"decrypt": false,
+"background_script": {
+"enabled": false,
+"build": 0,
+"sub": 0,
+"current": "0_0"
+}
+}
+}
+},
+"gta6": {
+"enabled": true,
+"endpoints": {
+"ps5": {
+"enabled": true,
+"platform_path": "ps5",
+"first_seen": true,
+"decrypt": true,
+"background_script": {
+"enabled": false,
+"build": 0,
+"sub": 0,
+"current": "0_0"
+}
+},
+"xboxsx": {
+"enabled": true,
+"platform_path": "xboxsx",
+"decrypt": true,
+"background_script": {
+"enabled": false,
+"build": 0,
+"sub": 0,
+"current": "0_0"
+}
+},
+"pcros": {
+"enabled": true,
+"platform_path": "pcros",
+"decrypt": true,
+"background_script": {
+"enabled": false,
+"build": 0,
+"sub": 0,
+"current": "0_0"
+}
+},
+"ps6": {
+"enabled": true,
+"platform_path": "ps6",
+"decrypt": true,
+"background_script": {
+"enabled": false,
+"build": 0,
+"sub": 0,
+"current": "0_0"
+}
+}
+}
+}
+},
+"source": {
+"url_template": "http://prod.cloud.rockstargames.com/titles/{title}/{platform}/0x1a098062.json",
+"asset": "0x1a098062"
+}
 }
