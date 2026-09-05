@@ -28,6 +28,11 @@ const DICTIONARY_JOBS_FILE = path.join(
   'dictionary-jobs.json'
 );
 
+const DICTIONARY_CUSTOM_FILE = path.join(
+  DICTIONARY_DIR,
+  'dictionary-custom.json'
+);
+
 const OVERRIDES_FILE = path.join(
   ROOT_DIR,
   'config',
@@ -325,6 +330,11 @@ function loadDictionary() {
       DICTIONARY_JOBS_FILE
     );
 
+  const custom =
+    loadJson(
+      DICTIONARY_CUSTOM_FILE
+    );
+
   return {
     contexts:
       tunablesData.contexts || {},
@@ -337,7 +347,9 @@ function loadDictionary() {
 
     other,
 
-    jobs
+    jobs,
+
+    custom
   };
 }
 
@@ -622,6 +634,40 @@ function buildJobsIndex(
   return index;
 }
 
+function buildCustomIndex(
+  dictionary
+) {
+  const index = {};
+
+  for (
+    const [
+      hash,
+      value
+    ] of Object.entries(
+      dictionary.custom || {}
+    )
+  ) {
+    const normalized =
+      normalizeHex(hash);
+
+    if (!normalized) {
+      continue;
+    }
+
+    if (
+      typeof value !== 'string' ||
+      !value.trim()
+    ) {
+      continue;
+    }
+
+    index[normalized] =
+      value.trim();
+  }
+
+  return index;
+}
+
 function findTunableByHash(
   index,
   hash
@@ -820,6 +866,11 @@ function createResolver(
 
   const jobsIndex =
     buildJobsIndex(
+      dictionary
+    );
+
+  const customIndex =
+    buildCustomIndex(
       dictionary
     );
 
@@ -1133,6 +1184,24 @@ function createResolver(
       };
     }
 
+    const custom =
+      customIndex[normalized];
+
+    if (custom) {
+      return {
+        key: normalized,
+        value:
+          translateValue(
+            value,
+            custom
+          ),
+        resolved: true,
+        name: custom,
+        context: null,
+        method: 'custom'
+      };
+    }
+
     return {
       key: normalized,
       value,
@@ -1251,6 +1320,11 @@ function createResolver(
             dictionary.jobs || {}
           ).length,
 
+        custom:
+          Object.keys(
+            dictionary.custom || {}
+          ).length,
+
         resolved:
           null
       };
@@ -1281,6 +1355,7 @@ module.exports = {
   DICTIONARY_TUNABLES_FILE,
   DICTIONARY_OTHER_FILE,
   DICTIONARY_JOBS_FILE,
+  DICTIONARY_CUSTOM_FILE,
   OVERRIDES_FILE,
   normalizeHex,
   calculateContextHash,
