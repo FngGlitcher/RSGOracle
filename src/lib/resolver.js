@@ -131,6 +131,12 @@ function normalizeHex(value) {
   if (
     typeof value === 'number'
   ) {
+    if (
+      !Number.isFinite(value)
+    ) {
+      return null;
+    }
+
     return (
       (value >>> 0)
         .toString(16)
@@ -139,8 +145,37 @@ function normalizeHex(value) {
     );
   }
 
+  const raw =
+    String(value).trim();
+
+  if (!raw) {
+    return null;
+  }
+
+  if (
+    /^[+-]?\d+$/.test(raw)
+  ) {
+    const decimal =
+      Number(raw);
+
+    if (
+      !Number.isSafeInteger(decimal) ||
+      decimal < -2147483648 ||
+      decimal > 4294967295
+    ) {
+      return null;
+    }
+
+    return (
+      (decimal >>> 0)
+        .toString(16)
+        .toUpperCase()
+        .padStart(8, '0')
+    );
+  }
+
   const cleaned =
-    stripHexPrefix(value);
+    stripHexPrefix(raw);
 
   if (
     !/^[0-9A-F]+$/.test(cleaned)
