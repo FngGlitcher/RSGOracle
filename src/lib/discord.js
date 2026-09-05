@@ -1,3 +1,4 @@
+```js
 const fs = require('fs');
 const path = require('path');
 
@@ -642,11 +643,49 @@ function formatNewswireArticle({
   date,
   detectedAt
 }) {
+  const safeTitle =
+    String(
+      title || 'Unknown article'
+    )
+      .replace(
+        /\\/g,
+        '\\\\'
+      )
+      .replace(
+        /\]/g,
+        '\\]'
+      )
+      .replace(
+        /\[/g,
+        '\\['
+      );
+
+  const safeUrl =
+    String(
+      url || ''
+    )
+      .replace(
+        /\\/g,
+        '\\\\'
+      )
+      .replace(
+        /\)/g,
+        '%29'
+      )
+      .replace(
+        /\(/g,
+        '%28'
+      );
+
+  const titleLink =
+    safeUrl
+      ? `[${safeTitle}](${safeUrl})`
+      : safeTitle;
+
   return [
-    `New newswire post at ${formatDetectionTime(detectedAt)}`,
-    `Posted: ${formatNewswirePostedTime(date)}`,
-    title || 'Unknown article',
-    url || 'Unknown URL'
+    `**New post detected at ${formatDetectionTime(detectedAt)}**`,
+    `**Posted at** ${formatNewswirePostedTime(date)}`,
+    titleLink
   ].join('\n');
 }
 
@@ -660,3 +699,4 @@ module.exports = {
   formatBackgroundUpdated,
   formatNewswireArticle
 };
+```
