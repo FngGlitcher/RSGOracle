@@ -17,7 +17,7 @@
       },
       "status": "active",
       "last_status": 200,
-      "last_checked": "2026-09-04T23:53:10.422Z",
+      "last_checked": "2026-09-05T00:06:58.449Z",
       "last_modified": "Thu, 03 Sep 2026 08:43:56 GMT",
       "etag": "\"639240218360000000\"",
       "last_content_length": 18038,
@@ -41,7 +41,7 @@
       },
       "status": "active",
       "last_status": 200,
-      "last_checked": "2026-09-04T23:53:10.840Z",
+      "last_checked": "2026-09-05T00:06:58.739Z",
       "last_modified": "Thu, 03 Sep 2026 08:44:02 GMT",
       "etag": "\"639240218420000000\"",
       "last_content_length": 27972,
@@ -49,16 +49,52 @@
       "last_error": null
     },
     "gta5/ps4": {
-      "status": "unavailable",
-      "last_status": 404,
-      "last_checked": "2026-09-04T23:53:10.983Z",
-      "last_error": "Endpoint unavailable for gta5/ps4: HTTP 404"
+      "status": "active",
+      "last_status": 200,
+      "last_checked": "2026-09-05T00:06:59.088Z",
+      "last_error": null,
+      "target": {
+        "title": "gta5",
+        "platform": "ps4",
+        "enabled": true,
+        "platform_path": "ps4",
+        "decrypt": true,
+        "background_script": {
+          "enabled": true,
+          "build": 3889,
+          "sub": 0,
+          "current": "3889_0"
+        },
+        "url": "http://prod.cloud.rockstargames.com/titles/gta5/ps4/0x1a098062.json"
+      },
+      "last_modified": "Thu, 03 Sep 2026 08:44:07 GMT",
+      "etag": "\"639240218470000000\"",
+      "last_content_length": 18253,
+      "last_hash": "7f172424748af55f9e8c70b5e5caa0d1eae1c6bd29dc733c7a1b0b03b8ea204c"
     },
     "gta5/ps5": {
-      "status": "unavailable",
-      "last_status": 404,
-      "last_checked": "2026-09-04T23:53:11.130Z",
-      "last_error": "Endpoint unavailable for gta5/ps5: HTTP 404"
+      "status": "active",
+      "last_status": 200,
+      "last_checked": "2026-09-05T00:06:59.523Z",
+      "last_error": null,
+      "target": {
+        "title": "gta5",
+        "platform": "ps5",
+        "enabled": true,
+        "platform_path": "ps5",
+        "decrypt": true,
+        "background_script": {
+          "enabled": true,
+          "build": 1158,
+          "sub": 14,
+          "current": "1158_14"
+        },
+        "url": "http://prod.cloud.rockstargames.com/titles/gta5/ps5/0x1a098062.json"
+      },
+      "last_modified": "Thu, 03 Sep 2026 08:44:13 GMT",
+      "etag": "\"639240218530000000\"",
+      "last_content_length": 28170,
+      "last_hash": "6e9fe3e5437826b03f19095a11a181091310baa3d3ba7e0c1f7afe48b3d033ee"
     },
     "gta5/xboxone": {
       "target": {
@@ -77,7 +113,7 @@
       },
       "status": "active",
       "last_status": 200,
-      "last_checked": "2026-09-04T23:53:11.457Z",
+      "last_checked": "2026-09-05T00:07:00.106Z",
       "last_modified": "Thu, 03 Sep 2026 08:44:18 GMT",
       "etag": "\"639240218580000000\"",
       "last_content_length": 18143,
@@ -101,7 +137,7 @@
       },
       "status": "active",
       "last_status": 200,
-      "last_checked": "2026-09-04T23:53:11.804Z",
+      "last_checked": "2026-09-05T00:07:00.359Z",
       "last_modified": "Thu, 03 Sep 2026 08:44:24 GMT",
       "etag": "\"639240218640000000\"",
       "last_content_length": 28034,
@@ -111,43 +147,43 @@
     "gta5/ps6": {
       "status": "unavailable",
       "last_status": 404,
-      "last_checked": "2026-09-04T23:53:11.945Z",
+      "last_checked": "2026-09-05T00:07:00.377Z",
       "last_error": "Endpoint unavailable for gta5/ps6: HTTP 404"
     },
     "gta5/ps3": {
       "status": "unavailable",
       "last_status": 200,
-      "last_checked": "2026-09-04T23:53:12.213Z",
+      "last_checked": "2026-09-05T00:07:00.684Z",
       "last_error": "Payload processing failed for gta5/ps3: Endpoint returned non-JSON data for gta5/ps3 (preview: �� a*�[�a�5k( � ��H�j\u0001յNwy��\u001d$��J\u0019b*�$W)�U���0�S(�3-H�h�f}�f�Lt���1���\\᰼,���1�'v��\u0000�\u0002\u0016�\u001c�!�p1mq�/���~�p\u001b*\u0013\u0016�t֋�\u0005lP�-y�3�)"
     },
     "gta5/xbox360": {
       "status": "unavailable",
       "last_status": 200,
-      "last_checked": "2026-09-04T23:53:12.419Z",
+      "last_checked": "2026-09-05T00:07:01.039Z",
       "last_error": "Payload processing failed for gta5/xbox360: Endpoint returned non-JSON data for gta5/xbox360 (preview: �� a*�[�a�5k( � ��H�j\u0001յNwy��\u001d$��J\u0019b*�$W)�U���0�S(�3-H�h�f}�f�Lt���1���\\᰼,���1�'v��\u0000�\u0002\u0016�\u001c�!�p1mq�/���~�p\u001b*\u0013\u0016�t֋�\u0005lP�-y�3�)"
     },
     "gta6/ps5": {
       "status": "unavailable",
       "last_status": 500,
-      "last_checked": "2026-09-04T23:53:12.562Z",
+      "last_checked": "2026-09-05T00:07:01.802Z",
       "last_error": "Endpoint unavailable for gta6/ps5: HTTP 500"
     },
     "gta6/xboxsx": {
       "status": "unavailable",
       "last_status": 500,
-      "last_checked": "2026-09-04T23:53:12.644Z",
+      "last_checked": "2026-09-05T00:07:01.887Z",
       "last_error": "Endpoint unavailable for gta6/xboxsx: HTTP 500"
     },
     "gta6/pcros": {
       "status": "unavailable",
       "last_status": 500,
-      "last_checked": "2026-09-04T23:53:12.767Z",
+      "last_checked": "2026-09-05T00:07:01.977Z",
       "last_error": "Endpoint unavailable for gta6/pcros: HTTP 500"
     },
     "gta6/ps6": {
       "status": "unavailable",
       "last_status": 500,
-      "last_checked": "2026-09-04T23:53:12.884Z",
+      "last_checked": "2026-09-05T00:07:02.065Z",
       "last_error": "Endpoint unavailable for gta6/ps6: HTTP 500"
     }
   },
@@ -159,7 +195,7 @@
       "hash": "dd039358d0b5284cf945a4770e2a4d379fdb69aba5f6dc5c36b3ef0cea6920d4",
       "last_modified": "Thu, 13 Aug 2026 09:29:57 GMT",
       "content_length": 18432,
-      "last_checked": "2026-09-04T23:53:12.885Z",
+      "last_checked": "2026-09-05T00:07:02.065Z",
       "status": "ok",
       "last_error": null
     },
@@ -170,9 +206,9 @@
       "hash": "80082f1bd6eacef7a54278cb2101a93885b2d2a70bdc45a0a4410d2b330f2ee1",
       "last_modified": "Thu, 13 Aug 2026 09:30:56 GMT",
       "content_length": 20480,
-      "last_checked": "2026-09-04T23:53:16.067Z",
-      "status": "ok",
-      "last_error": null
+      "last_checked": "2026-09-05T00:07:04.115Z",
+      "status": "error",
+      "last_error": "fetch failed"
     },
     "gta5/ps4": {
       "build": 3889,
@@ -181,9 +217,9 @@
       "hash": "df7c494e70ca09cd84d7c8fe518f9229905188b05c38d8e45f7d90c045d335d8",
       "last_modified": "Thu, 13 Aug 2026 09:30:11 GMT",
       "content_length": 18432,
-      "last_checked": "2026-09-04T23:53:38.172Z",
-      "status": "ok",
-      "last_error": null
+      "last_checked": "2026-09-05T00:08:07.757Z",
+      "status": "error",
+      "last_error": "fetch failed"
     },
     "gta5/ps5": {
       "build": 1158,
@@ -192,9 +228,9 @@
       "hash": "4af005b7dd105ff606281dc6e6c78a49fa5a522407eb472cb6372b5fe1b8a4e8",
       "last_modified": "Thu, 13 Aug 2026 09:31:07 GMT",
       "content_length": 20480,
-      "last_checked": "2026-09-04T23:53:39.952Z",
-      "status": "error",
-      "last_error": "fetch failed"
+      "last_checked": "2026-09-05T00:10:13.679Z",
+      "status": "ok",
+      "last_error": null
     },
     "gta5/xboxsx": {
       "build": 1158,
@@ -203,7 +239,18 @@
       "hash": "dec026ce59e8f17dee05df3966bdb3fd00b0ce0e1fc4b7fbe0eae27736085651",
       "last_modified": "Thu, 13 Aug 2026 09:31:36 GMT",
       "content_length": 20480,
-      "last_checked": "2026-09-04T23:55:46.707Z",
+      "last_checked": "2026-09-05T00:11:35.233Z",
+      "status": "ok",
+      "last_error": null
+    },
+    "gta5/xboxone": {
+      "build": 3889,
+      "sub": 0,
+      "build_value": "3889_0",
+      "hash": "b09d9c3a740a6b364ea77aff48b9159cf3adfe98a3b2ae4782f70fe6e27fe80e",
+      "last_modified": "Thu, 13 Aug 2026 09:30:40 GMT",
+      "content_length": 18432,
+      "last_checked": "2026-09-05T00:11:29.357Z",
       "status": "ok",
       "last_error": null
     }
