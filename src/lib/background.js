@@ -602,14 +602,36 @@ async function processBackgroundTarget(
   const eventNotifications =
     [];
 
-  const historyFile =
-    saveRpfToHistory(
-      target,
-      selectedBuild.build,
-      selectedBuild.sub,
-      downloaded.body,
-      detectedAt
+  /*
+   * History is only saved when something actually changed:
+   *
+   * - new build
+   * - first seen
+   * - same build with a different hash
+   *
+   * An unchanged build with the same hash is NOT saved.
+   */
+  const shouldSaveHistory =
+    buildChanged ||
+    !previousState ||
+    hashChanged;
+
+  let historyFile = null;
+
+  if (shouldSaveHistory) {
+    historyFile =
+      saveRpfToHistory(
+        target,
+        selectedBuild.build,
+        selectedBuild.sub,
+        downloaded.body,
+        detectedAt
+      );
+  } else {
+    console.log(
+      `[BACKGROUND] ${target.title}/${target.platform}: history not saved, build and hash unchanged`
     );
+  }
 
   /*
    * IMPORTANT:
