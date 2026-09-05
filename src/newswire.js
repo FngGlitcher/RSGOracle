@@ -1,22 +1,30 @@
 const fs = require("fs");
 const path = require("path");
 
-const NEWSWIRE_URL = "https://www.rockstargames.com/newswire";
+const NEWSWIRE_URL =
+  "https://www.rockstargames.com/newswire";
 
-const ROOT_DIR = path.resolve(__dirname, "..");
-const CONFIG_FILE = path.join(ROOT_DIR, "config", "config.json");
-const STATE_FILE = path.join(
-  ROOT_DIR,
-  "data",
-  "state",
-  "newswire.json"
-);
-const NOTIFICATIONS_FILE = path.join(
-  ROOT_DIR,
-  "data",
-  "state",
-  "notifications.json"
-);
+const ROOT_DIR =
+  path.resolve(__dirname, "..");
+
+const CONFIG_FILE =
+  path.join(ROOT_DIR, "config", "config.json");
+
+const STATE_FILE =
+  path.join(
+    ROOT_DIR,
+    "data",
+    "state",
+    "newswire.json"
+  );
+
+const NOTIFICATIONS_FILE =
+  path.join(
+    ROOT_DIR,
+    "data",
+    "state",
+    "notifications.json"
+  );
 
 function readJson(file) {
   try {
@@ -53,10 +61,11 @@ function writeJson(file, data) {
 
 function decodeHtml(value) {
   if (!value) {
-    return value;
+    return "";
   }
 
   return String(value)
+    .replace(/\\\//g, "/")
     .replace(/&amp;/gi, "&")
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
@@ -77,7 +86,11 @@ function normalizeUrl(value) {
     return null;
   }
 
-  let url = String(value).trim();
+  let url =
+    String(value)
+      .trim()
+      .replace(/\\\//g, "/")
+      .replace(/\\\\/g, "");
 
   if (url.startsWith("/")) {
     url =
@@ -85,7 +98,8 @@ function normalizeUrl(value) {
   }
 
   try {
-    const parsed = new URL(url);
+    const parsed =
+      new URL(url);
 
     if (
       parsed.hostname !==
@@ -108,7 +122,7 @@ function normalizeUrl(value) {
 function isArticleUrl(url) {
   return Boolean(
     url &&
-      /rockstargames\.com\/newswire\/article\//i.test(
+      /rockstargames\.com\/(?:[a-z]{2}\/)?newswire\/article\//i.test(
         url
       )
   );
@@ -126,7 +140,8 @@ function normalizeDate(value) {
     return null;
   }
 
-  const date = new Date(text);
+  const date =
+    new Date(text);
 
   if (
     Number.isNaN(
@@ -180,14 +195,12 @@ function parseHumanDate(value) {
       .replace(/\s+/g, " ")
       .trim();
 
-  let match = text.match(
-    /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s+(\d{4})\b/i
-  );
+  let match =
+    text.match(
+      /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s+(20\d{2})\b/i
+    );
 
   if (match) {
-    const year =
-      Number(match[3]);
-
     const month =
       MONTHS[
         match[1].toLowerCase()
@@ -195,6 +208,9 @@ function parseHumanDate(value) {
 
     const day =
       Number(match[2]);
+
+    const year =
+      Number(match[3]);
 
     return new Date(
       Date.UTC(
@@ -205,9 +221,10 @@ function parseHumanDate(value) {
     ).toISOString();
   }
 
-  match = text.match(
-    /\b(\d{1,2})\s+(janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre)\s+(\d{4})\b/i
-  );
+  match =
+    text.match(
+      /\b(\d{1,2})\s+(janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre)\s+(20\d{2})\b/i
+    );
 
   if (match) {
     const day =
@@ -277,10 +294,7 @@ function findDateInText(text) {
   return null;
 }
 
-function extractMeta(
-  html,
-  names
-) {
+function extractMeta(html, names) {
   for (const name of names) {
     const escaped =
       name.replace(
@@ -293,6 +307,7 @@ function extractMeta(
         `<meta[^>]+(?:name|property)=["']${escaped}["'][^>]+content=["']([^"']+)["'][^>]*>`,
         "i"
       ),
+
       new RegExp(
         `<meta[^>]+content=["']([^"']+)["'][^>]+(?:name|property)=["']${escaped}["'][^>]*>`,
         "i"
@@ -369,27 +384,33 @@ function extractJsonLdDates(html) {
         }
       }
     } catch {
-      const p =
+      const publishedMatch =
         body.match(
           /"datePublished"\s*:\s*"([^"]+)"/i
         );
 
-      const m =
+      const modifiedMatch =
         body.match(
           /"dateModified"\s*:\s*"([^"]+)"/i
         );
 
-      if (!published && p) {
+      if (
+        !published &&
+        publishedMatch
+      ) {
         published =
           normalizeDate(
-            p[1]
+            publishedMatch[1]
           );
       }
 
-      if (!modified && m) {
+      if (
+        !modified &&
+        modifiedMatch
+      ) {
         modified =
           normalizeDate(
-            m[1]
+            modifiedMatch[1]
           );
       }
     }
@@ -403,14 +424,20 @@ function extractJsonLdDates(html) {
 
 async function fetchPage(url) {
   const response =
-    await fetch(url, {
-      headers: {
-        "user-agent":
-          "Mozilla/5.0 RSGOracle Newswire",
-        accept:
-          "text/html,application/xhtml+xml"
+    await fetch(
+      url,
+      {
+        redirect: "follow",
+
+        headers: {
+          "user-agent":
+            "Mozilla/5.0 RSGOracle Newswire",
+
+          accept:
+            "text/html,application/xhtml+xml"
+        }
       }
-    });
+    );
 
   if (!response.ok) {
     throw new Error(
@@ -418,11 +445,10 @@ async function fetchPage(url) {
     );
   }
 
-  const html =
-    await response.text();
-
   return {
-    html,
+    html:
+      await response.text(),
+
     response
   };
 }
@@ -430,14 +456,18 @@ async function fetchPage(url) {
 async function fetchLastModified(url) {
   try {
     const response =
-      await fetch(url, {
-        method: "HEAD",
-        redirect: "follow",
-        headers: {
-          "user-agent":
-            "Mozilla/5.0 RSGOracle Newswire"
+      await fetch(
+        url,
+        {
+          method: "HEAD",
+          redirect: "follow",
+
+          headers: {
+            "user-agent":
+              "Mozilla/5.0 RSGOracle Newswire"
+          }
         }
-      });
+      );
 
     return (
       response.headers.get(
@@ -456,67 +486,84 @@ function extractArticleLinks(
   const results = [];
   const seen = new Set();
 
-  const pattern =
-    /<a\b[^>]*href=["']([^"']*\/newswire\/article\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
-
-  let match;
-
-  while (
-    (match =
-      pattern.exec(html)) &&
-    results.length <
-      limit + 1
-  ) {
-    const url =
-      normalizeUrl(
-        match[1]
+  const source =
+    String(html || "")
+      .replace(
+        /\\\//g,
+        "/"
       );
 
-    if (
-      !isArticleUrl(url) ||
-      seen.has(url)
+  const patterns = [
+    /https?:\/\/(?:www\.)?rockstargames\.com\/(?:[a-z]{2}\/)?newswire\/article\/[A-Za-z0-9]+\/[A-Za-z0-9_-]+/gi,
+
+    /https?:\\\/\\\/(?:www\.)?rockstargames\.com\\\/(?:[a-z]{2}\\\/)?newswire\\\/article\\\/[A-Za-z0-9]+\\\/[A-Za-z0-9_-]+/gi,
+
+    /\/(?:[a-z]{2}\/)?newswire\/article\/[A-Za-z0-9]+\/[A-Za-z0-9_-]+/gi,
+
+    /\\\/(?:[a-z]{2}\\\/)?newswire\\\/article\\\/[A-Za-z0-9]+\\\/[A-Za-z0-9_-]+/gi
+  ];
+
+  for (const pattern of patterns) {
+    let match;
+
+    while (
+      (match =
+        pattern.exec(source)) &&
+      results.length <
+        limit + 1
     ) {
-      continue;
+      const url =
+        normalizeUrl(
+          match[0]
+        );
+
+      if (
+        !isArticleUrl(url) ||
+        seen.has(url)
+      ) {
+        continue;
+      }
+
+      seen.add(url);
+
+      const start =
+        Math.max(
+          0,
+          match.index - 2500
+        );
+
+      const end =
+        Math.min(
+          source.length,
+          pattern.lastIndex + 2500
+        );
+
+      const context =
+        decodeHtml(
+          source.slice(
+            start,
+            end
+          )
+        );
+
+      const date =
+        findDateInText(
+          context
+        );
+
+      results.push({
+        title: null,
+        url,
+        date
+      });
     }
 
-    seen.add(url);
-
-    const title =
-      decodeHtml(
-        match[2]
-      );
-
-    const start =
-      Math.max(
-        0,
-        match.index - 1200
-      );
-
-    const end =
-      Math.min(
-        html.length,
-        pattern.lastIndex + 1200
-      );
-
-    const context =
-      decodeHtml(
-        html.slice(
-          start,
-          end
-        )
-      );
-
-    const date =
-      findDateInText(
-        context
-      );
-
-    results.push({
-      title:
-        title || null,
-      url,
-      date
-    });
+    if (
+      results.length >=
+      limit + 1
+    ) {
+      break;
+    }
   }
 
   return results;
@@ -529,7 +576,9 @@ async function fetchNewswire(
     "[NEWSWIRE] Checking Rockstar Newswire..."
   );
 
-  const { html } =
+  const {
+    html
+  } =
     await fetchPage(
       NEWSWIRE_URL
     );
@@ -548,13 +597,6 @@ async function fetchNewswire(
     return [];
   }
 
-  /*
-   * Rockstar currently places the featured
-   * GTA VI article first.
-   *
-   * Ignore that first result and inspect
-   * the next 5 real Newswire articles.
-   */
   const candidates =
     links.slice(
       1,
@@ -567,19 +609,23 @@ async function fetchNewswire(
 
   const articles = [];
 
-  for (const item of candidates) {
+  for (
+    const item of candidates
+  ) {
     try {
       const [
         page,
         lastModified
-      ] = await Promise.all([
-        fetchPage(
-          item.url
-        ),
-        fetchLastModified(
-          item.url
-        )
-      ]);
+      ] =
+        await Promise.all([
+          fetchPage(
+            item.url
+          ),
+
+          fetchLastModified(
+            item.url
+          )
+        ]);
 
       const articleHtml =
         page.html;
@@ -619,6 +665,11 @@ async function fetchNewswire(
           ]
         );
 
+      const title =
+        titleMeta ||
+        item.title ||
+        null;
+
       const date =
         jsonLd.published ||
         normalizeDate(
@@ -628,11 +679,7 @@ async function fetchNewswire(
           publishedMeta
         ) ||
         item.date ||
-        findDateInText(
-          decodeHtml(
-            articleHtml
-          )
-        );
+        null;
 
       const updatedAt =
         jsonLd.modified ||
@@ -641,31 +688,14 @@ async function fetchNewswire(
         ) ||
         parseHumanDate(
           modifiedMeta
-        );
-
-      const title =
-        titleMeta ||
-        item.title ||
+        ) ||
         null;
 
       articles.push({
         title,
         url: item.url,
-        date:
-          date || null,
-        updatedAt:
-          updatedAt || null,
-
-        /*
-         * IMPORTANT:
-         * Keep EXACTLY the HTTP
-         * Last-Modified header.
-         *
-         * If Rockstar sends:
-         * Thu, 31 Aug 2045 02:39:53 GMT
-         *
-         * we keep that exact value.
-         */
+        date,
+        updatedAt,
         lastModified:
           lastModified || null
       });
@@ -693,11 +723,18 @@ async function fetchNewswire(
       articles.push({
         title:
           item.title || null,
-        url: item.url,
+
+        url:
+          item.url,
+
         date:
           item.date || null,
-        updatedAt: null,
-        lastModified: null
+
+        updatedAt:
+          null,
+
+        lastModified:
+          null
       });
     }
   }
@@ -708,7 +745,8 @@ async function fetchNewswire(
 function normalizeState(state) {
   if (
     !state ||
-    typeof state !== "object"
+    typeof state !==
+      "object"
   ) {
     return {
       articles: [],
@@ -750,7 +788,7 @@ function findExisting(
 ) {
   return (
     state.articles.find(
-      (article) =>
+      article =>
         article &&
         article.url === url
     ) || null
@@ -848,13 +886,17 @@ async function main() {
         CONFIG_FILE
       ) || {};
 
+    const configuredLimit =
+      Number(
+        config?.newswire?.latest_articles
+      );
+
     const latestArticles =
       Number.isInteger(
-        config?.newswire?.latest_articles
+        configuredLimit
       ) &&
-      config.newswire.latest_articles >
-        0
-        ? config.newswire.latest_articles
+      configuredLimit > 0
+        ? configuredLimit
         : 5;
 
     const previousState =
@@ -888,7 +930,9 @@ async function main() {
       const article of
         previousState.articles
     ) {
-      if (article?.url) {
+      if (
+        article?.url
+      ) {
         knownUrls.add(
           article.url
         );
@@ -897,7 +941,7 @@ async function main() {
 
     const newArticles =
       currentArticles.filter(
-        (article) =>
+        article =>
           !knownUrls.has(
             article.url
           )
@@ -916,17 +960,6 @@ async function main() {
     let stateChanged =
       false;
 
-    /*
-     * Always enrich existing articles.
-     *
-     * This repairs old state entries such as:
-     *
-     * date: null
-     * updated_at: null
-     *
-     * without requiring the article
-     * to be detected as new again.
-     */
     for (
       const article of
         currentArticles
@@ -1016,7 +1049,9 @@ async function main() {
         new Set(
           state.known_urls
         )
-      ).slice(-25);
+      ).slice(
+        -25
+      );
 
     if (
       stateChanged
