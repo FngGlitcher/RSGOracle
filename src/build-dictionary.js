@@ -40,22 +40,18 @@ const TUNABLE_CONTEXTS = [
   'CONTENT_MODIFIER_2',
   'CONTENT_MODIFIER_3',
   'CONTENT_MODIFIER_4',
-
   'CONTENT_MODIFIER_MEMBERSHIP_0',
   'CONTENT_MODIFIER_MEMBERSHIP_1',
   'CONTENT_MODIFIER_MEMBERSHIP_2',
   'CONTENT_MODIFIER_MEMBERSHIP_3',
   'CONTENT_MODIFIER_MEMBERSHIP_4',
-
   'BASE_GLOBALS',
   'CD_GLOBAL',
   'MP_Global',
   'MP_FM_MEMBERSHIP',
-
   'MP_CNC_TEAM_COP',
   'MP_CNC_TEAM_VAGOS',
   'MP_CNC_TEAM_LOST',
-
   'MP_FM',
   'MP_FM_DM',
   'MP_FM_RACES',
@@ -65,7 +61,6 @@ const TUNABLE_CONTEXTS = [
   'MP_FM_RACES_AIR',
   'MP_FM_RACES_SEA',
   'MP_FM_RACES_STUNT',
-
   'MP_FM_MISSIONS',
   'MP_FM_SURVIVAL',
   'MP_FM_BASEJUMP',
@@ -105,7 +100,8 @@ function request(url, redirects = 5) {
         }
       },
       response => {
-        const status = response.statusCode || 0;
+        const status =
+          response.statusCode || 0;
 
         if (
           status >= 300 &&
@@ -140,7 +136,10 @@ function request(url, redirects = 5) {
           return;
         }
 
-        if (status < 200 || status >= 300) {
+        if (
+          status < 200 ||
+          status >= 300
+        ) {
           response.resume();
 
           reject(
@@ -154,47 +153,65 @@ function request(url, redirects = 5) {
 
         const chunks = [];
 
-        response.on('data', chunk => {
-          chunks.push(chunk);
-        });
+        response.on(
+          'data',
+          chunk => {
+            chunks.push(chunk);
+          }
+        );
 
-        response.on('end', () => {
-          resolve(
-            Buffer.concat(chunks).toString('utf8')
-          );
-        });
+        response.on(
+          'end',
+          () => {
+            resolve(
+              Buffer.concat(chunks)
+                .toString('utf8')
+            );
+          }
+        );
       }
     );
 
-    req.setTimeout(30000, () => {
-      req.destroy(
-        new Error(
-          `Timeout while downloading ${url}`
-        )
-      );
-    });
+    req.setTimeout(
+      30000,
+      () => {
+        req.destroy(
+          new Error(
+            `Timeout while downloading ${url}`
+          )
+        );
+      }
+    );
 
-    req.on('error', reject);
+    req.on(
+      'error',
+      reject
+    );
   });
 }
 
-async function downloadSource(name, url) {
+async function downloadSource(
+  name,
+  url
+) {
   const extension =
     name === 'jobsDictionary'
       ? '.json'
       : '.txt';
 
-  const cacheFile = path.join(
-    CACHE_DIR,
-    `${name}${extension}`
-  );
+  const cacheFile =
+    path.join(
+      CACHE_DIR,
+      `${name}${extension}`
+    );
 
   try {
     console.log(
       `[dictionary] Downloading ${name}...`
     );
 
-    const content = await request(url);
+    const content =
+      await request(url);
 
     fs.writeFileSync(
       cacheFile,
@@ -208,7 +225,9 @@ async function downloadSource(name, url) {
 
     return content;
   } catch (error) {
-    if (fs.existsSync(cacheFile)) {
+    if (
+      fs.existsSync(cacheFile)
+    ) {
       console.warn(
         `[dictionary] Failed to download ${name}, using cached copy`
       );
@@ -223,28 +242,6 @@ async function downloadSource(name, url) {
   }
 }
 
-function signedInt32(value) {
-  const uint =
-    Number(value) >>> 0;
-
-  return uint >= 0x80000000
-    ? uint - 0x100000000
-    : uint;
-}
-
-function unsignedInt(value) {
-  return Number(value) >>> 0;
-}
-
-function hex8(value) {
-  return (
-    unsignedInt(value)
-      .toString(16)
-      .toUpperCase()
-      .padStart(8, '0')
-  );
-}
-
 function normalizeHex(value) {
   if (
     value === null ||
@@ -253,88 +250,32 @@ function normalizeHex(value) {
     return null;
   }
 
-  let text = String(value)
-    .trim()
-    .replace(/^_?0x/i, '');
+  const text =
+    String(value)
+      .trim()
+      .replace(
+        /^_?0x/i,
+        ''
+      );
 
-  if (!/^[0-9a-f]+$/i.test(text)) {
+  if (
+    !/^[0-9a-f]+$/i.test(text)
+  ) {
     return null;
   }
 
-  text = text.padStart(8, '0');
-
-  if (text.length > 8) {
-    text = text.slice(-8);
-  }
-
-  return text.toUpperCase();
-}
-
-function hashObject(value) {
-  if (
-    value &&
-    typeof value === 'object'
-  ) {
-    if (
-      Number.isInteger(value.unsigned)
-    ) {
-      return unsignedInt(value.unsigned);
-    }
-
-    if (
-      Number.isInteger(value.signed)
-    ) {
-      return unsignedInt(value.signed);
-    }
-
-    if (value.hex) {
-      const normalized =
-        normalizeHex(value.hex);
-
-      if (normalized) {
-        return parseInt(
-          normalized,
-          16
-        ) >>> 0;
-      }
-    }
-  }
-
-  if (
-    typeof value === 'number'
-  ) {
-    return unsignedInt(value);
-  }
-
-  const normalized =
-    normalizeHex(value);
-
-  if (normalized) {
-    return parseInt(
-      normalized,
-      16
-    ) >>> 0;
-  }
-
-  return null;
-}
-
-function createHashInfo(value) {
-  const unsigned =
-    unsignedInt(value);
-
-  return {
-    signed: signedInt32(unsigned),
-    unsigned,
-    hex: hex8(unsigned)
-  };
+  return text
+    .padStart(8, '0')
+    .slice(-8)
+    .toUpperCase();
 }
 
 function parseTunableNames(text) {
   const names = new Set();
 
   for (
-    const rawLine of text.split(/\r?\n/)
+    const rawLine of
+    text.split(/\r?\n/)
   ) {
     const line =
       rawLine.trim();
@@ -352,15 +293,18 @@ function parseTunableNames(text) {
 
     const cleaned =
       line
-        .replace(/^["']/, '')
-        .replace(/["'],?$/, '')
+        .replace(
+          /^["']/,
+          ''
+        )
+        .replace(
+          /["'],?$/,
+          ''
+        )
         .trim();
 
-    if (!cleaned) {
-      continue;
-    }
-
     if (
+      cleaned &&
       /^[A-Za-z0-9_.$-]+$/.test(
         cleaned
       )
@@ -373,10 +317,11 @@ function parseTunableNames(text) {
 }
 
 function parseGtaDictionary(text) {
-  const dictionary = {};
+  const other = {};
 
   for (
-    const rawLine of text.split(/\r?\n/)
+    const rawLine of
+    text.split(/\r?\n/)
   ) {
     const line =
       rawLine.trim();
@@ -388,51 +333,55 @@ function parseGtaDictionary(text) {
     const columns =
       line.split('\t');
 
-    if (columns.length < 2) {
+    if (
+      columns.length < 2
+    ) {
       continue;
     }
 
-    let key = columns[0].trim();
+    const hash =
+      columns[0].trim();
 
-    const value =
+    const key =
       columns
         .slice(1)
         .join('\t')
         .trim();
 
-    if (!key || !value) {
+    if (
+      !hash ||
+      !key
+    ) {
       continue;
     }
 
-    const normalized =
-      normalizeHex(key);
+    const normalizedHash =
+      normalizeHex(hash);
 
-    if (normalized) {
-      key = normalized;
-    } else {
-      try {
-        const hash =
-          joaat(key);
-
-        key = hash.hex;
-      } catch {
-        continue;
-      }
+    if (!normalizedHash) {
+      continue;
     }
 
-    if (!dictionary[key]) {
-      dictionary[key] = value;
+    if (
+      !Object.prototype.hasOwnProperty.call(
+        other,
+        key
+      )
+    ) {
+      other[key] =
+        normalizedHash;
     }
   }
 
-  return dictionary;
+  return other;
 }
 
 function parseLabels(text) {
-  const labels = {};
+  const other = {};
 
   for (
-    const rawLine of text.split(/\r?\n/)
+    const rawLine of
+    text.split(/\r?\n/)
   ) {
     const line =
       rawLine.trim();
@@ -441,31 +390,13 @@ function parseLabels(text) {
       continue;
     }
 
-    const match =
-      line.match(
-        /^([^=\t]+)[=\t](.*)$/
+    other[line] =
+      String(
+        joaat(line).signed
       );
-
-    if (!match) {
-      continue;
-    }
-
-    const key =
-      match[1].trim();
-
-    const value =
-      match[2].trim();
-
-    if (
-      key &&
-      value &&
-      !labels[key]
-    ) {
-      labels[key] = value;
-    }
   }
 
-  return labels;
+  return other;
 }
 
 function parseJobs(text) {
@@ -475,11 +406,12 @@ function parseJobs(text) {
 
     if (
       parsed &&
-      typeof parsed === 'object'
+      typeof parsed === 'object' &&
+      !Array.isArray(parsed)
     ) {
       return parsed;
     }
-  } catch (error) {
+  } catch {
     console.warn(
       '[dictionary] jobs_dictionary.json is not valid JSON'
     );
@@ -492,77 +424,14 @@ function buildContexts() {
   const contexts = {};
 
   for (
-    const context of TUNABLE_CONTEXTS
+    const context of
+    TUNABLE_CONTEXTS
   ) {
-    const hash =
-      joaat(context);
-
     contexts[context] =
-      createHashInfo(
-        hash.unsigned ??
-          unsignedInt(hash.signed)
-      );
+      joaat(context);
   }
 
   return contexts;
-}
-
-function buildContextHashIndexes(
-  contexts
-) {
-  const byUnsigned = {};
-  const bySigned = {};
-  const byHex = {};
-
-  for (
-    const [
-      context,
-      info
-    ] of Object.entries(contexts)
-  ) {
-    byUnsigned[
-      String(info.unsigned)
-    ] = context;
-
-    bySigned[
-      String(info.signed)
-    ] = context;
-
-    byHex[
-      info.hex
-    ] = context;
-  }
-
-  return {
-    byUnsigned,
-    bySigned,
-    byHex
-  };
-}
-
-function calculateContextHash(
-  name,
-  context
-) {
-  const nameHash =
-    joaat(name);
-
-  const contextHash =
-    joaat(context);
-
-  const result =
-    signedInt32(
-      unsignedInt(
-        signedInt32(
-          nameHash.signed +
-            contextHash.signed
-        )
-      )
-    );
-
-  return createHashInfo(
-    result
-  );
 }
 
 function buildTunables(
@@ -574,33 +443,36 @@ function buildTunables(
   for (
     const name of names
   ) {
-    if (
-      !name ||
-      typeof name !== 'string'
-    ) {
-      continue;
-    }
+    const hash =
+      joaat(name);
 
     const entry = {
-      hash: createHashInfo(
-        joaat(name).unsigned
-      ),
+      hash: hash.hex,
       sum: {}
     };
 
     for (
-      const context of Object.keys(
-        contexts
-      )
+      const [
+        context,
+        contextHash
+      ] of Object.entries(contexts)
     ) {
-      const contextHash =
-        calculateContextHash(
-          name,
-          context
-        );
+      const sum =
+        (
+          parseInt(
+            hash.hex,
+            16
+          ) +
+          parseInt(
+            contextHash.hex,
+            16
+          )
+        )
+          .toString(16)
+          .toUpperCase();
 
       entry.sum[context] =
-        contextHash.hex;
+        sum;
     }
 
     tunables[name] =
@@ -610,7 +482,7 @@ function buildTunables(
   return tunables;
 }
 
-function buildReverseTunableIndex(
+function buildTunableHashIndex(
   tunables
 ) {
   const index = {};
@@ -636,7 +508,9 @@ function buildReverseTunableIndex(
         continue;
       }
 
-      if (!index[normalized]) {
+      if (
+        !index[normalized]
+      ) {
         index[normalized] = [];
       }
 
@@ -650,164 +524,86 @@ function buildReverseTunableIndex(
   return index;
 }
 
-function buildOtherDictionary(
+function buildOtherIndex(
   gtaDictionary,
   labels
 ) {
-  const other = {
-    ...gtaDictionary
-  };
+  const other = {};
 
   for (
     const [
       key,
-      value
-    ] of Object.entries(labels)
+      hash
+    ] of Object.entries(
+      gtaDictionary
+    )
   ) {
-    if (
-      typeof value !== 'string'
-    ) {
-      continue;
-    }
-
-    const trimmed =
-      value.trim();
-
-    if (!trimmed) {
-      continue;
-    }
-
     const normalized =
-      normalizeHex(key);
+      normalizeHex(hash);
 
     if (normalized) {
-      if (!other[normalized]) {
-        other[normalized] =
-          trimmed;
-      }
-
-      continue;
+      other[normalized] =
+        key;
     }
+  }
 
-    try {
-      const hash =
-        joaat(key);
+  for (
+    const [
+      key,
+      signedHash
+    ] of Object.entries(labels)
+  ) {
+    const normalized =
+      normalizeHex(signedHash);
 
-      if (
-        !other[hash.hex]
-      ) {
-        other[hash.hex] =
-          trimmed;
-      }
-    } catch {
-      // Ignore labels that cannot be hashed.
+    if (
+      normalized &&
+      !other[normalized]
+    ) {
+      other[normalized] =
+        key;
     }
   }
 
   return other;
 }
 
-function buildValueReverseIndex(
-  other
+function buildJobs(
+  jobsDictionary
 ) {
-  const index = {};
+  const jobs = {};
 
   for (
     const [
-      hash,
+      key,
       value
-    ] of Object.entries(other)
+    ] of Object.entries(
+      jobsDictionary
+    )
   ) {
-    const normalized =
-      normalizeHex(hash);
-
-    if (!normalized) {
+    if (
+      value === null ||
+      value === undefined
+    ) {
       continue;
     }
 
-    const key =
-      String(value);
-
-    if (!index[key]) {
-      index[key] = [];
-    }
-
-    index[key].push(
-      normalized
-    );
-  }
-
-  return index;
-}
-
-function normalizeJobs(
-  jobs
-) {
-  const output = {};
-
-  function walk(
-    value,
-    prefix = ''
-  ) {
-    if (
-      Array.isArray(value)
-    ) {
-      value.forEach(
-        (item, index) => {
-          walk(
-            item,
-            prefix
-              ? `${prefix}.${index}`
-              : String(index)
-          );
-        }
+    const hash =
+      joaat(
+        key.toLowerCase()
       );
 
-      return;
-    }
-
-    if (
-      !value ||
-      typeof value !== 'object'
-    ) {
-      return;
-    }
-
-    for (
-      const [
-        key,
-        child
-      ] of Object.entries(value)
-    ) {
-      const current =
-        prefix
-          ? `${prefix}.${key}`
-          : key;
-
-      if (
-        typeof child === 'string' ||
-        typeof child === 'number'
-      ) {
-        output[
-          String(child)
-        ] = current;
-      } else {
-        walk(
-          child,
-          current
-        );
-      }
-    }
+    jobs[String(hash.signed)] =
+      String(value);
   }
 
-  walk(jobs);
-
-  return output;
+  return jobs;
 }
 
 function buildMetadata({
   names,
   contexts,
+  tunables,
   other,
   jobs,
   sourceSizes
@@ -819,13 +615,19 @@ function buildMetadata({
     generator:
       'gtav-tunables-monitor',
 
-    format_version: 1,
+    compatible_with:
+      'OL-Tunables predecrypt dictionary format',
+
+    format_version: 2,
 
     tunable_names:
       names.length,
 
     contexts:
       Object.keys(contexts).length,
+
+    tunables:
+      Object.keys(tunables).length,
 
     other:
       Object.keys(other).length,
@@ -893,7 +695,7 @@ async function main() {
       gtaLabelsText
     );
 
-  const jobsRaw =
+  const jobsDictionary =
     parseJobs(
       jobsDictionaryText
     );
@@ -901,36 +703,21 @@ async function main() {
   const contexts =
     buildContexts();
 
-  const contextIndexes =
-    buildContextHashIndexes(
-      contexts
-    );
-
   const tunables =
     buildTunables(
       names,
       contexts
     );
 
-  const reverseTunables =
-    buildReverseTunableIndex(
-      tunables
-    );
-
   const other =
-    buildOtherDictionary(
+    buildOtherIndex(
       gtaDictionary,
       labels
     );
 
-  const otherReverse =
-    buildValueReverseIndex(
-      other
-    );
-
   const jobs =
-    normalizeJobs(
-      jobsRaw
+    buildJobs(
+      jobsDictionary
     );
 
   const dictionary = {
@@ -940,20 +727,16 @@ async function main() {
 
     contexts,
 
-    context_indexes:
-      contextIndexes,
-
     tunables,
-
-    tunable_hashes:
-      reverseTunables,
 
     other,
 
-    other_reverse:
-      otherReverse,
-
     jobs,
+
+    tunable_hashes:
+      buildTunableHashIndex(
+        tunables
+      ),
 
     sources: {
       tunable_names:
@@ -976,8 +759,10 @@ async function main() {
       buildMetadata({
         names,
         contexts,
+        tunables,
         other,
         jobs,
+
         sourceSizes: {
           tunable_names:
             tunableNamesText.length,
@@ -1008,14 +793,6 @@ async function main() {
   );
 
   console.log(
-    '[dictionary] Dictionary written to:'
-  );
-
-  console.log(
-    OUTPUT_FILE
-  );
-
-  console.log(
     `[dictionary] Tunable names: ${names.length}`
   );
 
@@ -1036,6 +813,10 @@ async function main() {
   );
 
   console.log(
+    `[dictionary] Dictionary written to: ${OUTPUT_FILE}`
+  );
+
+  console.log(
     '[dictionary] Done.'
   );
 }
@@ -1047,8 +828,8 @@ main().catch(error => {
 
   console.error(
     error.stack ||
-      error.message ||
-      error
+    error.message ||
+    error
   );
 
   process.exitCode = 1;
