@@ -12,825 +12,895 @@ const DATA_DIR = path.join(ROOT_DIR, 'data');
 const DICTIONARY_DIR = path.join(DATA_DIR, 'dictionaries');
 const CACHE_DIR = path.join(DATA_DIR, 'dictionary-sources');
 
-const OUTPUT_FILE = path.join(
-  DICTIONARY_DIR,
-  'dictionary.json'
+const OUTPUT_TUNABLES = path.join(
+DICTIONARY_DIR,
+'dictionary-tunables.json'
+);
+
+const OUTPUT_OTHER = path.join(
+DICTIONARY_DIR,
+'dictionary-other.json'
+);
+
+const OUTPUT_JOBS = path.join(
+DICTIONARY_DIR,
+'dictionary-jobs.json'
 );
 
 const SOURCES = {
-  tunableNames:
-    'https://raw.githubusercontent.com/Wildbrick142/V-Tunable-Names/main/tunable_list.txt',
+tunableNames:
+'https://raw.githubusercontent.com/Wildbrick142/V-Tunable-Names/main/tunable_list.txt',
 
-  tuneablesProcessing:
-    'https://raw.githubusercontent.com/root-cause/v-decompiled-scripts/master/tuneables_processing.c',
+tuneablesProcessing:
+'https://raw.githubusercontent.com/root-cause/v-decompiled-scripts/master/tuneables_processing.c',
 
-  gtaDictionary:
-    'https://raw.githubusercontent.com/calamity-inc/gta-v-joaat-hash-db/senpai/out/dictionary-dec_signed.tsv',
+gtaDictionary:
+'https://raw.githubusercontent.com/calamity-inc/gta-v-joaat-hash-db/senpai/out/dictionary-dec_signed.tsv',
 
-  gtaLabels:
-    'https://raw.githubusercontent.com/root-cause/v-labels/master/TextKeys.txt',
+gtaLabels:
+'https://raw.githubusercontent.com/root-cause/v-labels/master/TextKeys.txt',
 
-  jobsDictionary:
-    'https://raw.githubusercontent.com/Troplo/GTAV-Tunables/master/src/static/jobs_dictionary.json'
+jobsDictionary:
+'https://raw.githubusercontent.com/Troplo/GTAV-Tunables/master/src/static/jobs_dictionary.json'
 };
 
 const TUNABLE_CONTEXTS = [
-  'CONTENT_MODIFIER_0',
-  'CONTENT_MODIFIER_1',
-  'CONTENT_MODIFIER_2',
-  'CONTENT_MODIFIER_3',
-  'CONTENT_MODIFIER_4',
-  'CONTENT_MODIFIER_MEMBERSHIP_0',
-  'CONTENT_MODIFIER_MEMBERSHIP_1',
-  'CONTENT_MODIFIER_MEMBERSHIP_2',
-  'CONTENT_MODIFIER_MEMBERSHIP_3',
-  'CONTENT_MODIFIER_MEMBERSHIP_4',
-  'BASE_GLOBALS',
-  'CD_GLOBAL',
-  'MP_Global',
-  'MP_FM_MEMBERSHIP',
-  'MP_CNC_TEAM_COP',
-  'MP_CNC_TEAM_VAGOS',
-  'MP_CNC_TEAM_LOST',
-  'MP_FM',
-  'MP_FM_DM',
-  'MP_FM_RACES',
-  'MP_FM_RACES_CAR',
-  'MP_FM_RACES_BIKE',
-  'MP_FM_RACES_CYCLE',
-  'MP_FM_RACES_AIR',
-  'MP_FM_RACES_SEA',
-  'MP_FM_RACES_STUNT',
-  'MP_FM_MISSIONS',
-  'MP_FM_SURVIVAL',
-  'MP_FM_BASEJUMP',
-  'MP_FM_CAPTURE',
-  'MP_FM_LTS',
-  'MP_FM_HEIST',
-  'MP_FM_CONTACT',
-  'MP_FM_RANDOM',
-  'MP_FM_VERSUS',
-  'MP_FM_GANG_ATTACK',
-  'MP_FMADVERSARY'
+'CONTENT_MODIFIER_0',
+'CONTENT_MODIFIER_1',
+'CONTENT_MODIFIER_2',
+'CONTENT_MODIFIER_3',
+'CONTENT_MODIFIER_4',
+'CONTENT_MODIFIER_MEMBERSHIP_0',
+'CONTENT_MODIFIER_MEMBERSHIP_1',
+'CONTENT_MODIFIER_MEMBERSHIP_2',
+'CONTENT_MODIFIER_MEMBERSHIP_3',
+'CONTENT_MODIFIER_MEMBERSHIP_4',
+'BASE_GLOBALS',
+'CD_GLOBAL',
+'MP_Global',
+'MP_FM_MEMBERSHIP',
+'MP_CNC_TEAM_COP',
+'MP_CNC_TEAM_VAGOS',
+'MP_CNC_TEAM_LOST',
+'MP_FM',
+'MP_FM_DM',
+'MP_FM_RACES',
+'MP_FM_RACES_CAR',
+'MP_FM_RACES_BIKE',
+'MP_FM_RACES_CYCLE',
+'MP_FM_RACES_AIR',
+'MP_FM_RACES_SEA',
+'MP_FM_RACES_STUNT',
+'MP_FM_MISSIONS',
+'MP_FM_SURVIVAL',
+'MP_FM_BASEJUMP',
+'MP_FM_CAPTURE',
+'MP_FM_LTS',
+'MP_FM_HEIST',
+'MP_FM_CONTACT',
+'MP_FM_RANDOM',
+'MP_FM_VERSUS',
+'MP_FM_GANG_ATTACK',
+'MP_FMADVERSARY'
 ];
 
 function ensureDirectories() {
-  fs.mkdirSync(DICTIONARY_DIR, {
-    recursive: true
-  });
+fs.mkdirSync(DICTIONARY_DIR, {
+recursive: true
+});
 
-  fs.mkdirSync(CACHE_DIR, {
-    recursive: true
-  });
+fs.mkdirSync(CACHE_DIR, {
+recursive: true
+});
 }
 
 function request(url, redirects = 5) {
-  return new Promise((resolve, reject) => {
-    const requestUrl = new URL(url);
+return new Promise((resolve, reject) => {
+const requestUrl = new URL(url);
 
-    const req = https.get(
-      {
-        hostname: requestUrl.hostname,
-        path:
-          requestUrl.pathname +
-          requestUrl.search,
-        headers: {
-          'User-Agent':
-            'gtav-tunables-monitor-dictionary-builder'
-        }
-      },
-      response => {
-        const status =
-          response.statusCode || 0;
+```
+const req = https.get(
+  {
+    hostname: requestUrl.hostname,
+    path:
+      requestUrl.pathname +
+      requestUrl.search,
+    headers: {
+      'User-Agent':
+        'gtav-tunables-monitor-dictionary-builder'
+    }
+  },
+  response => {
+    const status =
+      response.statusCode || 0;
 
-        if (
-          status >= 300 &&
-          status < 400 &&
-          response.headers.location
-        ) {
-          response.resume();
+    if (
+      status >= 300 &&
+      status < 400 &&
+      response.headers.location
+    ) {
+      response.resume();
 
-          if (redirects <= 0) {
-            reject(
-              new Error(
-                `Too many redirects while downloading ${url}`
-              )
-            );
-
-            return;
-          }
-
-          const redirectedUrl =
-            new URL(
-              response.headers.location,
-              url
-            ).toString();
-
-          request(
-            redirectedUrl,
-            redirects - 1
-          )
-            .then(resolve)
-            .catch(reject);
-
-          return;
-        }
-
-        if (
-          status < 200 ||
-          status >= 300
-        ) {
-          response.resume();
-
-          reject(
-            new Error(
-              `HTTP ${status} while downloading ${url}`
-            )
-          );
-
-          return;
-        }
-
-        const chunks = [];
-
-        response.on(
-          'data',
-          chunk => {
-            chunks.push(chunk);
-          }
-        );
-
-        response.on(
-          'end',
-          () => {
-            resolve(
-              Buffer.concat(chunks)
-                .toString('utf8')
-            );
-          }
-        );
-      }
-    );
-
-    req.setTimeout(
-      30000,
-      () => {
-        req.destroy(
+      if (redirects <= 0) {
+        reject(
           new Error(
-            `Timeout while downloading ${url}`
+            `Too many redirects while downloading ${url}`
           )
         );
+
+        return;
+      }
+
+      const redirectedUrl =
+        new URL(
+          response.headers.location,
+          url
+        ).toString();
+
+      request(
+        redirectedUrl,
+        redirects - 1
+      )
+        .then(resolve)
+        .catch(reject);
+
+      return;
+    }
+
+    if (
+      status < 200 ||
+      status >= 300
+    ) {
+      response.resume();
+
+      reject(
+        new Error(
+          `HTTP ${status} while downloading ${url}`
+        )
+      );
+
+      return;
+    }
+
+    const chunks = [];
+
+    response.on(
+      'data',
+      chunk => {
+        chunks.push(chunk);
       }
     );
 
-    req.on(
-      'error',
-      reject
+    response.on(
+      'end',
+      () => {
+        resolve(
+          Buffer.concat(chunks)
+            .toString('utf8')
+        );
+      }
     );
-  });
+  }
+);
+
+req.setTimeout(
+  30000,
+  () => {
+    req.destroy(
+      new Error(
+        `Timeout while downloading ${url}`
+      )
+    );
+  }
+);
+
+req.on(
+  'error',
+  reject
+);
+```
+
+});
 }
 
 async function downloadSource(
-  name,
-  url
+name,
+url
 ) {
-  const extension =
-    name === 'jobsDictionary'
-      ? '.json'
-      : '.txt';
+const extension =
+name === 'jobsDictionary'
+? '.json'
+: '.txt';
 
-  const cacheFile =
-    path.join(
-      CACHE_DIR,
-      `${name}${extension}`
-    );
+const cacheFile =
+path.join(
+CACHE_DIR,
+`${name}${extension}`
+);
 
-  try {
-    console.log(
-      `[dictionary] Downloading ${name}...`
-    );
+try {
+console.log(
+`[dictionary] Downloading ${name}...`
+);
 
-    const content =
-      await request(url);
+```
+const content =
+  await request(url);
 
-    fs.writeFileSync(
-      cacheFile,
-      content,
-      'utf8'
-    );
+fs.writeFileSync(
+  cacheFile,
+  content,
+  'utf8'
+);
 
-    console.log(
-      `[dictionary] ${name}: ${content.length} bytes`
-    );
+console.log(
+  `[dictionary] ${name}: ${content.length} bytes`
+);
 
-    return content;
-  } catch (error) {
-    if (
-      fs.existsSync(cacheFile)
-    ) {
-      console.warn(
-        `[dictionary] Failed to download ${name}, using cached copy`
-      );
+return content;
+```
 
-      return fs.readFileSync(
-        cacheFile,
-        'utf8'
-      );
-    }
+} catch (error) {
+if (
+fs.existsSync(cacheFile)
+) {
+console.warn(
+`[dictionary] Failed to download ${name}, using cached copy`
+);
 
-    throw error;
-  }
+```
+  return fs.readFileSync(
+    cacheFile,
+    'utf8'
+  );
+}
+
+throw error;
+```
+
+}
 }
 
 function normalizeHex(value) {
-  if (
-    value === null ||
-    value === undefined
-  ) {
-    return null;
-  }
+if (
+value === null ||
+value === undefined
+) {
+return null;
+}
 
-  const text =
-    String(value)
-      .trim()
-      .replace(
-        /^_?0x/i,
-        ''
-      );
+const text =
+String(value)
+.trim()
+.replace(
+/^_?0x/i,
+''
+);
 
-  if (
-    !/^[0-9a-f]+$/i.test(text)
-  ) {
-    return null;
-  }
+if (
+!/^[0-9a-f]+$/i.test(text)
+) {
+return null;
+}
 
-  return text
-    .padStart(8, '0')
-    .slice(-8)
-    .toUpperCase();
+return text
+.padStart(8, '0')
+.slice(-8)
+.toUpperCase();
 }
 
 function parseTunableNames(text) {
-  const names = new Set();
+const names = new Set();
 
-  for (
-    const rawLine of
-    text.split(/\r?\n/)
-  ) {
-    const line =
-      rawLine.trim();
+for (
+const rawLine of
+text.split(/\r?\n/)
+) {
+const line =
+rawLine.trim();
 
-    if (!line) {
-      continue;
-    }
+```
+if (!line) {
+  continue;
+}
 
-    if (
-      line.startsWith('#') ||
-      line.startsWith('//')
-    ) {
-      continue;
-    }
+if (
+  line.startsWith('#') ||
+  line.startsWith('//')
+) {
+  continue;
+}
 
-    const cleaned =
-      line
-        .replace(
-          /^["']/,
-          ''
-        )
-        .replace(
-          /["'],?$/,
-          ''
-        )
-        .trim();
+const cleaned =
+  line
+    .replace(
+      /^["']/,
+      ''
+    )
+    .replace(
+      /["'],?$/,
+      ''
+    )
+    .trim();
 
-    if (
-      cleaned &&
-      /^[A-Za-z0-9_.$-]+$/.test(
-        cleaned
-      )
-    ) {
-      names.add(cleaned);
-    }
-  }
+if (
+  cleaned &&
+  /^[A-Za-z0-9_.$-]+$/.test(
+    cleaned
+  )
+) {
+  names.add(cleaned);
+}
+```
 
-  return Array.from(names);
+}
+
+return Array.from(names);
 }
 
 function parseGtaDictionary(text) {
-  const other = {};
+const other = {};
 
-  for (
-    const rawLine of
-    text.split(/\r?\n/)
-  ) {
-    const line =
-      rawLine.trim();
+for (
+const rawLine of
+text.split(/\r?\n/)
+) {
+const line =
+rawLine.trim();
 
-    if (!line) {
-      continue;
-    }
+```
+if (!line) {
+  continue;
+}
 
-    const columns =
-      line.split('\t');
+const columns =
+  line.split('\t');
 
-    if (
-      columns.length < 2
-    ) {
-      continue;
-    }
+if (
+  columns.length < 2
+) {
+  continue;
+}
 
-    const hash =
-      columns[0].trim();
+const hash =
+  columns[0].trim();
 
-    const key =
-      columns
-        .slice(1)
-        .join('\t')
-        .trim();
+const key =
+  columns
+    .slice(1)
+    .join('\t')
+    .trim();
 
-    if (
-      !hash ||
-      !key
-    ) {
-      continue;
-    }
+if (
+  !hash ||
+  !key
+) {
+  continue;
+}
 
-    const normalizedHash =
-      normalizeHex(hash);
+const normalizedHash =
+  normalizeHex(hash);
 
-    if (!normalizedHash) {
-      continue;
-    }
+if (!normalizedHash) {
+  continue;
+}
 
-    if (
-      !Object.prototype.hasOwnProperty.call(
-        other,
-        key
-      )
-    ) {
-      other[key] =
-        normalizedHash;
-    }
-  }
+if (
+  !Object.prototype.hasOwnProperty.call(
+    other,
+    normalizedHash
+  )
+) {
+  other[normalizedHash] =
+    key;
+}
+```
 
-  return other;
+}
+
+return other;
 }
 
 function parseLabels(text) {
-  const other = {};
+const other = {};
 
-  for (
-    const rawLine of
-    text.split(/\r?\n/)
-  ) {
-    const line =
-      rawLine.trim();
+for (
+const rawLine of
+text.split(/\r?\n/)
+) {
+const line =
+rawLine.trim();
 
-    if (!line) {
-      continue;
-    }
+```
+if (!line) {
+  continue;
+}
 
-    other[line] =
-      String(
-        joaat(line).signed
-      );
-  }
+const hash =
+  joaat(line);
 
-  return other;
+other[
+  normalizeHex(hash.hex)
+] =
+  line;
+```
+
+}
+
+return other;
 }
 
 function parseJobs(text) {
-  try {
-    const parsed =
-      JSON.parse(text);
+try {
+const parsed =
+JSON.parse(text);
 
-    if (
-      parsed &&
-      typeof parsed === 'object' &&
-      !Array.isArray(parsed)
-    ) {
-      return parsed;
-    }
-  } catch {
-    console.warn(
-      '[dictionary] jobs_dictionary.json is not valid JSON'
-    );
-  }
+```
+if (
+  parsed &&
+  typeof parsed === 'object' &&
+  !Array.isArray(parsed)
+) {
+  return parsed;
+}
+```
 
-  return {};
+} catch {
+console.warn(
+'[dictionary] jobs_dictionary.json is not valid JSON'
+);
+}
+
+return {};
 }
 
 function buildContexts() {
-  const contexts = {};
+const contexts = {};
 
-  for (
-    const context of
-    TUNABLE_CONTEXTS
-  ) {
-    contexts[context] =
-      joaat(context);
-  }
+for (
+const context of
+TUNABLE_CONTEXTS
+) {
+contexts[context] =
+joaat(context);
+}
 
-  return contexts;
+return contexts;
 }
 
 function buildTunables(
-  names,
-  contexts
+names,
+contexts
 ) {
-  const tunables = {};
+const tunables = {};
 
-  for (
-    const name of names
-  ) {
-    const hash =
-      joaat(name);
+for (
+const name of names
+) {
+const hash =
+joaat(name);
 
-    const entry = {
-      hash: hash.hex,
-      sum: {}
-    };
+```
+const entry = {
+  hash: hash.hex,
+  sum: {}
+};
 
-    for (
-      const [
-        context,
-        contextHash
-      ] of Object.entries(contexts)
-    ) {
-      const sum =
-        (
-          parseInt(
-            hash.hex,
-            16
-          ) +
-          parseInt(
-            contextHash.hex,
-            16
-          )
-        )
-          .toString(16)
-          .toUpperCase();
+for (
+  const [
+    context,
+    contextHash
+  ] of Object.entries(contexts)
+) {
+  const sum =
+    (
+      parseInt(
+        hash.hex,
+        16
+      ) +
+      parseInt(
+        contextHash.hex,
+        16
+      )
+    )
+      .toString(16)
+      .toUpperCase();
 
-      entry.sum[context] =
-        sum;
-    }
+  entry.sum[context] =
+    sum;
+}
 
-    tunables[name] =
-      entry;
-  }
+tunables[name] =
+  entry;
+```
 
-  return tunables;
+}
+
+return tunables;
 }
 
 function buildTunableHashIndex(
-  tunables
+tunables
 ) {
-  const index = {};
+const index = {};
 
-  for (
-    const [
-      name,
-      entry
-    ] of Object.entries(tunables)
-  ) {
-    for (
-      const [
-        context,
-        hash
-      ] of Object.entries(
-        entry.sum || {}
-      )
-    ) {
-      const normalized =
-        normalizeHex(hash);
+for (
+const [
+name,
+entry
+] of Object.entries(tunables)
+) {
+for (
+const [
+context,
+hash
+] of Object.entries(
+entry.sum || {}
+)
+) {
+const normalized =
+normalizeHex(hash);
 
-      if (!normalized) {
-        continue;
-      }
-
-      if (
-        !index[normalized]
-      ) {
-        index[normalized] = [];
-      }
-
-      index[normalized].push({
-        name,
-        context
-      });
-    }
+```
+  if (!normalized) {
+    continue;
   }
 
-  return index;
+  if (
+    !index[normalized]
+  ) {
+    index[normalized] = [];
+  }
+
+  index[normalized].push({
+    name,
+    context
+  });
+}
+```
+
+}
+
+return index;
 }
 
 function buildOtherIndex(
-  gtaDictionary,
-  labels
+gtaDictionary,
+labels
 ) {
-  const other = {};
+const other = {};
 
-  for (
-    const [
-      key,
-      hash
-    ] of Object.entries(
-      gtaDictionary
-    )
-  ) {
-    const normalized =
-      normalizeHex(hash);
+for (
+const [
+hash,
+key
+] of Object.entries(
+gtaDictionary
+)
+) {
+const normalized =
+normalizeHex(hash);
 
-    if (normalized) {
-      other[normalized] =
-        key;
-    }
-  }
+```
+if (normalized) {
+  other[normalized] =
+    key;
+}
+```
 
-  for (
-    const [
-      key,
-      signedHash
-    ] of Object.entries(labels)
-  ) {
-    const normalized =
-      normalizeHex(signedHash);
+}
 
-    if (
-      normalized &&
-      !other[normalized]
-    ) {
-      other[normalized] =
-        key;
-    }
-  }
+for (
+const [
+hash,
+key
+] of Object.entries(
+labels
+)
+) {
+const normalized =
+normalizeHex(hash);
 
-  return other;
+```
+if (
+  normalized &&
+  !other[normalized]
+) {
+  other[normalized] =
+    key;
+}
+```
+
+}
+
+return other;
 }
 
 function buildJobs(
-  jobsDictionary
+jobsDictionary
 ) {
-  const jobs = {};
+const jobs = {};
 
-  for (
-    const [
-      key,
-      value
-    ] of Object.entries(
-      jobsDictionary
-    )
-  ) {
-    if (
-      value === null ||
-      value === undefined
-    ) {
-      continue;
-    }
-
-    const hash =
-      joaat(
-        key.toLowerCase()
-      );
-
-    jobs[String(hash.signed)] =
-      String(value);
-  }
-
-  return jobs;
+for (
+const [
+key,
+value
+] of Object.entries(
+jobsDictionary
+)
+) {
+if (
+value === null ||
+value === undefined
+) {
+continue;
 }
 
-function buildMetadata({
-  names,
-  contexts,
-  tunables,
-  other,
-  jobs,
-  sourceSizes
-}) {
-  return {
-    generated_at:
-      new Date().toISOString(),
+```
+const hash =
+  joaat(
+    key.toLowerCase()
+  );
 
-    generator:
-      'gtav-tunables-monitor',
+jobs[
+  String(hash.signed)
+] =
+  String(value);
+```
 
-    compatible_with:
-      'OL-Tunables predecrypt dictionary format',
+}
 
-    format_version: 2,
+return jobs;
+}
 
-    tunable_names:
-      names.length,
-
-    contexts:
-      Object.keys(contexts).length,
-
-    tunables:
-      Object.keys(tunables).length,
-
-    other:
-      Object.keys(other).length,
-
-    jobs:
-      Object.keys(jobs).length,
-
-    sources:
-      sourceSizes
-  };
+function writeJson(
+file,
+data
+) {
+fs.writeFileSync(
+file,
+JSON.stringify(
+data,
+null,
+2
+) + '\n',
+'utf8'
+);
 }
 
 async function main() {
-  console.log(
-    '[dictionary] Building local GTA V dictionary...'
-  );
+console.log(
+'[dictionary] Building split GTA V dictionaries...'
+);
 
-  ensureDirectories();
+ensureDirectories();
 
-  const [
-    tunableNamesText,
-    tuneablesProcessingText,
-    gtaDictionaryText,
-    gtaLabelsText,
-    jobsDictionaryText
-  ] = await Promise.all([
-    downloadSource(
-      'tunableNames',
-      SOURCES.tunableNames
-    ),
+const [
+tunableNamesText,
+tuneablesProcessingText,
+gtaDictionaryText,
+gtaLabelsText,
+jobsDictionaryText
+] = await Promise.all([
+downloadSource(
+'tunableNames',
+SOURCES.tunableNames
+),
 
-    downloadSource(
-      'tuneablesProcessing',
-      SOURCES.tuneablesProcessing
-    ),
+```
+downloadSource(
+  'tuneablesProcessing',
+  SOURCES.tuneablesProcessing
+),
 
-    downloadSource(
-      'gtaDictionary',
-      SOURCES.gtaDictionary
-    ),
+downloadSource(
+  'gtaDictionary',
+  SOURCES.gtaDictionary
+),
 
-    downloadSource(
-      'gtaLabels',
-      SOURCES.gtaLabels
-    ),
+downloadSource(
+  'gtaLabels',
+  SOURCES.gtaLabels
+),
 
-    downloadSource(
-      'jobsDictionary',
-      SOURCES.jobsDictionary
-    )
-  ]);
+downloadSource(
+  'jobsDictionary',
+  SOURCES.jobsDictionary
+)
+```
 
-  const names =
-    parseTunableNames(
-      tunableNamesText
-    );
+]);
 
-  const gtaDictionary =
-    parseGtaDictionary(
-      gtaDictionaryText
-    );
+void tuneablesProcessingText;
 
-  const labels =
-    parseLabels(
-      gtaLabelsText
-    );
+const names =
+parseTunableNames(
+tunableNamesText
+);
 
-  const jobsDictionary =
-    parseJobs(
-      jobsDictionaryText
-    );
+const gtaDictionary =
+parseGtaDictionary(
+gtaDictionaryText
+);
 
-  const contexts =
-    buildContexts();
+const labels =
+parseLabels(
+gtaLabelsText
+);
 
-  const tunables =
-    buildTunables(
-      names,
-      contexts
-    );
+const jobsDictionary =
+parseJobs(
+jobsDictionaryText
+);
 
-  const other =
-    buildOtherIndex(
-      gtaDictionary,
-      labels
-    );
+const contexts =
+buildContexts();
 
-  const jobs =
-    buildJobs(
-      jobsDictionary
-    );
+const tunables =
+buildTunables(
+names,
+contexts
+);
 
-  const dictionary = {
-    version: 1,
+const tunableHashes =
+buildTunableHashIndex(
+tunables
+);
 
-    format: 1,
+const other =
+buildOtherIndex(
+gtaDictionary,
+labels
+);
 
-    contexts,
+const jobs =
+buildJobs(
+jobsDictionary
+);
 
-    tunables,
+const tunablesDictionary = {
+version: 2,
+type: 'tunables',
+contexts,
+tunables,
+tunable_hashes: tunableHashes,
+metadata: {
+generated_at:
+new Date().toISOString(),
 
-    other,
+```
+  tunable_names:
+    names.length,
 
-    jobs,
+  contexts:
+    Object.keys(contexts).length,
 
-    tunable_hashes:
-      buildTunableHashIndex(
-        tunables
-      ),
+  tunables:
+    Object.keys(tunables).length,
 
-    sources: {
-      tunable_names:
-        SOURCES.tunableNames,
+  source_sizes: {
+    tunable_names:
+      tunableNamesText.length,
 
-      tuneables_processing:
-        SOURCES.tuneablesProcessing,
+    tuneables_processing:
+      tuneablesProcessingText.length
+  }
+}
+```
 
-      gta_dictionary:
-        SOURCES.gtaDictionary,
+};
 
-      gta_labels:
-        SOURCES.gtaLabels,
+const otherDictionary = {
+version: 2,
+type: 'other',
+other,
+metadata: {
+generated_at:
+new Date().toISOString(),
 
-      jobs_dictionary:
-        SOURCES.jobsDictionary
-    },
+```
+  entries:
+    Object.keys(other).length,
 
-    metadata:
-      buildMetadata({
-        names,
-        contexts,
-        tunables,
-        other,
-        jobs,
+  gta_dictionary_entries:
+    Object.keys(gtaDictionary).length,
 
-        sourceSizes: {
-          tunable_names:
-            tunableNamesText.length,
+  label_entries:
+    Object.keys(labels).length,
 
-          tuneables_processing:
-            tuneablesProcessingText.length,
+  source_sizes: {
+    gta_dictionary:
+      gtaDictionaryText.length,
 
-          gta_dictionary:
-            gtaDictionaryText.length,
+    gta_labels:
+      gtaLabelsText.length
+  }
+}
+```
 
-          gta_labels:
-            gtaLabelsText.length,
+};
 
-          jobs_dictionary:
-            jobsDictionaryText.length
-        }
-      })
-  };
+const jobsOutput = {
+version: 2,
+type: 'jobs',
+jobs,
+metadata: {
+generated_at:
+new Date().toISOString(),
 
-  fs.writeFileSync(
-    OUTPUT_FILE,
-    JSON.stringify(
-      dictionary,
-      null,
-      2
-    ) + '\n',
-    'utf8'
-  );
+```
+  entries:
+    Object.keys(jobs).length,
 
-  console.log(
-    `[dictionary] Tunable names: ${names.length}`
-  );
+  source_size:
+    jobsDictionaryText.length
+}
+```
 
-  console.log(
-    `[dictionary] Contexts: ${Object.keys(contexts).length}`
-  );
+};
 
-  console.log(
-    `[dictionary] Tunables: ${Object.keys(tunables).length}`
-  );
+writeJson(
+OUTPUT_TUNABLES,
+tunablesDictionary
+);
 
-  console.log(
-    `[dictionary] Other hashes: ${Object.keys(other).length}`
-  );
+writeJson(
+OUTPUT_OTHER,
+otherDictionary
+);
 
-  console.log(
-    `[dictionary] Jobs: ${Object.keys(jobs).length}`
-  );
+writeJson(
+OUTPUT_JOBS,
+jobsOutput
+);
 
-  console.log(
-    `[dictionary] Dictionary written to: ${OUTPUT_FILE}`
-  );
+console.log(
+`[dictionary] Tunable names: ${names.length}`
+);
 
-  console.log(
-    '[dictionary] Done.'
-  );
+console.log(
+`[dictionary] Contexts: ${Object.keys(contexts).length}`
+);
+
+console.log(
+`[dictionary] Tunables: ${Object.keys(tunables).length}`
+);
+
+console.log(
+`[dictionary] Other hashes: ${Object.keys(other).length}`
+);
+
+console.log(
+`[dictionary] Jobs: ${Object.keys(jobs).length}`
+);
+
+console.log(
+`[dictionary] Written: ${OUTPUT_TUNABLES}`
+);
+
+console.log(
+`[dictionary] Written: ${OUTPUT_OTHER}`
+);
+
+console.log(
+`[dictionary] Written: ${OUTPUT_JOBS}`
+);
+
+console.log(
+'[dictionary] Done.'
+);
 }
 
-main().catch(error => {
-  console.error(
-    '[dictionary] Build failed:'
-  );
+main().catch(
+error => {
+console.error(
+'[dictionary] Failed:',
+error
+);
 
-  console.error(
-    error.stack ||
-    error.message ||
-    error
-  );
+```
+process.exitCode = 1;
+```
 
-  process.exitCode = 1;
-});
+}
+);
