@@ -102,14 +102,24 @@ Number(code)
 function cleanTitle(value) {
 return decodeHtml(
 String(value || '')
-.replace(/<[^>]+>/g, ' ')
-.replace(/\s+/g, ' ')
+.replace(
+/<[^>]+>/g,
+' '
+)
+.replace(
+/\s+/g,
+' '
+)
 .trim()
 );
 }
 
 function parseDate(value) {
-if (!value) {
+if (
+value === null ||
+value === undefined ||
+value === ''
+) {
 return null;
 }
 
@@ -177,42 +187,7 @@ return false;
 }
 }
 
-/*
-
-Recursively searches GraphQL data for publication/update
-timestamps. Rockstar's GraphQL response can move these
-fields around depending on the Newswire response shape.
-*/
-function findGraphqlDates(
-value,
-result = {
-published: null,
-updated: null
-}
-) {
-if (!value) {
-return result;
-}
-
-if (Array.isArray(value)) {
-for (const item of value) {
-findGraphqlDates(
-item,
-result
-);
-}
-
-return result;
-
-}
-
-if (
-typeof value !== 'object'
-) {
-return result;
-}
-
-const publishedKeys = [
+const PUBLISHED_KEYS = [
 'datePublished',
 'date_published',
 'publishedAt',
@@ -224,7 +199,7 @@ const publishedKeys = [
 'published'
 ];
 
-const updatedKeys = [
+const UPDATED_KEYS = [
 'dateModified',
 'date_modified',
 'updatedAt',
@@ -241,12 +216,37 @@ const updatedKeys = [
 'modified'
 ];
 
+function findDateByKeys(
+value,
+keys,
+visited = new Set()
+) {
+if (!value) {
+return null;
+}
+
+if (
+typeof value !== 'object'
+) {
+return null;
+}
+
+if (
+visited.has(value)
+) {
+return null;
+}
+
+visited.add(value);
+
 for (
-const key of publishedKeys
+const key of keys
 ) {
 if (
-!result.published &&
-value[key] !== undefined
+Object.prototype.hasOwnProperty.call(
+value,
+key
+)
 ) {
 const parsed =
 parseDate(
@@ -254,30 +254,7 @@ value[key]
 );
 
   if (parsed) {
-    result.published =
-      parsed;
-    break;
-  }
-}
-
-}
-
-for (
-const key of updatedKeys
-) {
-if (
-!result.updated &&
-value[key] !== undefined
-) {
-const parsed =
-parseDate(
-value[key]
-);
-
-  if (parsed) {
-    result.updated =
-      parsed;
-    break;
+    return parsed;
   }
 }
 
@@ -292,14 +269,124 @@ if (
 child &&
 typeof child === 'object'
 ) {
-findGraphqlDates(
+const result =
+findDateByKeys(
 child,
-result
+keys,
+visited
 );
-}
+
+  if (result) {
+    return result;
+  }
 }
 
-return result;
+}
+
+return null;
+}
+
+function findNewswireDates(
+value
+) {
+return {
+published:
+findDateByKeys(
+value,
+PUBLISHED_KEYS
+),
+
+updated:
+  findDateByKeys(
+    value,
+    UPDATED_KEYS
+  )
+
+};
+}
+
+function extractArticleId(article) {
+if (!article) {
+return null;
+}
+
+return (
+article.id ||
+article.id_hash ||
+article.idHash ||
+article.slug ||
+article.articleId ||
+article.article_id ||
+null
+);
+}
+
+function extractArticleUrl(article) {
+if (!article) {
+return null;
+}
+
+const candidates = [
+article.url,
+article.urlOfficial,
+article.url_official,
+article.link,
+article.href,
+article.path,
+article.metaUrl,
+article.meta_url
+];
+
+for (
+const candidate of candidates
+) {
+const normalized =
+normalizeUrl(
+candidate
+);
+
+if (
+  normalized &&
+  isNewswireArticleUrl(
+    normalized
+  )
+) {
+  return normalized;
+}
+
+}
+
+return null;
+}
+
+function extractArticleTitle(article) {
+if (!article) {
+return null;
+}
+
+const candidates = [
+article.title,
+article.headline,
+article.name,
+article.displayTitle,
+article.display_title
+];
+
+for (
+const candidate of candidates
+) {
+const title =
+cleanTitle(
+candidate
+);
+
+if (title) {
+  return title;
+}
+
+}
+
+return null;
 }
 
 function normalizeArticle(article) {
@@ -307,85 +394,32 @@ if (!article) {
 return null;
 }
 
-const rawUrl =
-article.url ||
-article.urlOfficial ||
-article.url_official ||
-article.link ||
-article.href ||
-article.path ||
-null;
-
 const url =
-normalizeUrl(
-rawUrl
+extractArticleUrl(
+article
 );
 
 if (
-!url ||
-!isNewswireArticleUrl(
-url
-)
+!url
 ) {
 return null;
 }
 
-const title =
-cleanTitle(
-article.title ||
-article.headline ||
-article.name ||
-article.displayTitle ||
-article.display_title ||
-''
-);
-
 const dates =
-findGraphqlDates(
+findNewswireDates(
 article
-);
-
-const directDate =
-parseDate(
-article.datePublished ||
-article.date_published ||
-article.publishedAt ||
-article.published_at ||
-article.publicationDate ||
-article.publication_date ||
-article.publishDate ||
-article.publish_date ||
-article.published
-);
-
-const directUpdated =
-parseDate(
-article.dateModified ||
-article.date_modified ||
-article.updatedAt ||
-article.updated_at ||
-article.modifiedAt ||
-article.modified_at ||
-article.modifiedDate ||
-article.modified_date ||
-article.lastUpdated ||
-article.last_updated ||
-article.lastModified ||
-article.last_modified ||
-article.updated ||
-article.modified
 );
 
 return {
 title:
-title || null,
+extractArticleTitle(
+article
+),
 
 url,
 
 date:
-  directDate ||
-  dates.published ||
-  null,
+  dates.published,
 
 lastModified:
   article.lastModified ||
@@ -393,9 +427,7 @@ lastModified:
   null,
 
 updatedAt:
-  directUpdated ||
-  dates.updated ||
-  null
+  dates.updated
 
 };
 }
@@ -455,8 +487,12 @@ if (!value) {
 return;
 }
 
-if (Array.isArray(value)) {
-for (const item of value) {
+if (
+Array.isArray(value)
+) {
+for (
+const item of value
+) {
 findJsonLdDates(
 item,
 result
@@ -474,18 +510,15 @@ return;
 }
 
 const published =
-parseDate(
-value.datePublished ||
-value.publishedAt ||
-value.publicationDate
+findDateByKeys(
+value,
+PUBLISHED_KEYS
 );
 
-const modified =
-parseDate(
-value.dateModified ||
-value.modifiedAt ||
-value.updatedAt ||
-value.lastModified
+const updated =
+findDateByKeys(
+value,
+UPDATED_KEYS
 );
 
 if (
@@ -497,27 +530,11 @@ published;
 }
 
 if (
-modified &&
+updated &&
 !result.modified
 ) {
 result.modified =
-modified;
-}
-
-for (
-const child of Object.values(
-value
-)
-) {
-if (
-child &&
-typeof child === 'object'
-) {
-findJsonLdDates(
-child,
-result
-);
-}
+updated;
 }
 }
 
@@ -548,7 +565,7 @@ match[1].trim()
   );
 } catch {
   /*
-   * Ignore malformed JSON-LD blocks.
+   * Ignore malformed JSON-LD.
    */
 }
 
@@ -557,11 +574,117 @@ match[1].trim()
 return result;
 }
 
+function extractDatesFromRawHtml(
+html
+) {
+/*
+
+Rockstar pages often contain the article
+timestamps inside serialized application data.
+
+
+We therefore inspect the complete HTML for
+ISO timestamps and prioritize timestamps
+located near publication/update field names.
+*/
+
+const publishedPatterns = [
+/(?|publishedAt|publicationDate|publishDate|published)[^]{0,250}?(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:.\d+)?Z)/i,
+/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:.\d+)?Z)[^]{0,250}?(?|publishedAt|publicationDate|publishDate|published)/i
+];
+
+const updatedPatterns = [
+/(?|updatedAt|modifiedAt|modifiedDate|lastUpdated|lastModified|updated|modified)[^]{0,250}?(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:.\d+)?Z)/i,
+/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:.\d+)?Z)[^]{0,250}?(?|updatedAt|modifiedAt|modifiedDate|lastUpdated|lastModified|updated|modified)/i
+];
+
+let published = null;
+let modified = null;
+
+for (
+const pattern of publishedPatterns
+) {
+const match =
+html.match(
+pattern
+);
+
+if (
+  match &&
+  match[1]
+) {
+  published =
+    parseDate(
+      match[1]
+    );
+
+  if (published) {
+    break;
+  }
+}
+
+}
+
+for (
+const pattern of updatedPatterns
+) {
+const match =
+html.match(
+pattern
+);
+
+if (
+  match &&
+  match[1]
+) {
+  modified =
+    parseDate(
+      match[1]
+    );
+
+  if (modified) {
+    break;
+  }
+}
+
+}
+
+/*
+
+Fallback for a visible English date.
+*/
+if (!published) {
+const visibleDate =
+html.match(
+/\b(?|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b/i
+);
+if (
+  visibleDate
+) {
+  published =
+    parseDate(
+      visibleDate[0]
+    );
+}
+
+}
+
+return {
+published,
+modified
+};
+}
+
 function extractPageMetadata(
 html
 ) {
 const jsonLd =
 extractJsonLdDates(
+html
+);
+
+const rawHtml =
+extractDatesFromRawHtml(
 html
 );
 
@@ -607,44 +730,17 @@ html,
 )
 );
 
-/*
-
-Rockstar currently renders the publication date
-directly in the Newswire page as:
-
-
-3 septembre 2026
-
-
-If JSON-LD/meta data is unavailable, look for a
-human-readable date in the article page.
-*/
-let visibleDate = null;
-
-const visibleDateMatch =
-html.match(
-/\b(?|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b/i
-);
-
-if (
-visibleDateMatch
-) {
-visibleDate =
-parseDate(
-visibleDateMatch[0]
-);
-}
-
 return {
 published:
 publishedMeta ||
 jsonLd.published ||
-visibleDate ||
+rawHtml.published ||
 null,
 
 modified:
   modifiedMeta ||
   jsonLd.modified ||
+  rawHtml.modified ||
   null,
 
 title:
@@ -666,7 +762,7 @@ title: null
 
 try {
 console.log(
-[NEWSWIRE] Reading article metadata: ${url}
+[NEWSWIRE] Reading article page: ${url}
 );
 
 const response =
@@ -689,7 +785,7 @@ if (
   !response.ok
 ) {
   console.log(
-    `[NEWSWIRE] Unable to read article page: ${response.status} ${response.statusText}`
+    `[NEWSWIRE] Article page returned ${response.status} ${response.statusText}`
   );
 
   return {
@@ -708,7 +804,7 @@ return extractPageMetadata(
 
 } catch (error) {
 console.log(
-[NEWSWIRE] Failed to read article metadata: ${error.message}
+[NEWSWIRE] Failed to read article page: ${error.message}
 );
 
 return {
@@ -729,7 +825,7 @@ return null;
 
 try {
 console.log(
-[NEWSWIRE] Reading last-modified header: ${url}
+[NEWSWIRE] Reading HTTP Last-Modified header: ${url}
 );
 
 let response =
@@ -765,10 +861,6 @@ if (
 if (
   !response.ok
 ) {
-  console.log(
-    `[NEWSWIRE] Unable to read HTTP metadata: ${response.status} ${response.statusText}`
-  );
-
   return null;
 }
 
@@ -780,7 +872,7 @@ return (
 
 } catch (error) {
 console.log(
-[NEWSWIRE] Failed to read last-modified header: ${error.message}
+[NEWSWIRE] Failed to read Last-Modified header: ${error.message}
 );
 
 return null;
@@ -838,7 +930,9 @@ let payload;
 
 try {
 payload =
-JSON.parse(text);
+JSON.parse(
+text
+);
 } catch {
 throw new Error(
 Invalid GraphQL response: ${text.slice(0, 300)}
@@ -876,8 +970,7 @@ if (!data) {
 return [];
 }
 
-const possible =
-[
+const possible = [
 data.posts?.results,
 data.newswire?.results,
 data.news?.results,
@@ -905,8 +998,7 @@ if (!data) {
 return null;
 }
 
-const possible =
-[
+const possible = [
 data.post,
 data.newswirePost,
 data.newsPost,
@@ -927,17 +1019,73 @@ return value;
 }
 }
 
-return (
-data &&
+if (
 typeof data === 'object'
-? data
-: null
-);
+) {
+return data;
+}
+
+return null;
+}
+
+function mergeArticle(
+base,
+extra
+) {
+if (!base && !extra) {
+return null;
+}
+
+if (!base) {
+return {
+...extra
+};
+}
+
+if (!extra) {
+return {
+...base
+};
+}
+
+return {
+title:
+extra.title ||
+base.title ||
+null,
+
+url:
+  extra.url ||
+  base.url ||
+  null,
+
+date:
+  extra.date ||
+  base.date ||
+  null,
+
+lastModified:
+  extra.lastModified ||
+  base.lastModified ||
+  null,
+
+updatedAt:
+  extra.updatedAt ||
+  base.updatedAt ||
+  null
+
+};
 }
 
 async function fetchNewswire(
 latestArticles
 ) {
+/*
+
+Rockstar puts the pinned/featured article first.
+Request one extra item so we can ignore it and
+still receive exactly latestArticles real posts.
+*/
 const limit =
 latestArticles + 1;
 
@@ -969,17 +1117,6 @@ console.log(
 [NEWSWIRE] NewswireList returned ${posts.length} posts.
 );
 
-/*
-
-Rockstar puts a pinned/featured article first.
-Never consider that article part of the latest list.
-*/
-const latestPosts =
-posts.slice(
-1,
-latestArticles + 1
-);
-
 if (
 posts.length
 ) {
@@ -992,15 +1129,13 @@ console.log(
   `[NEWSWIRE] Ignoring pinned article: ${pinned?.title || 'unknown'}`
 );
 
-if (
-  pinned?.url
-) {
-  console.log(
-    `[NEWSWIRE] Pinned URL ignored: ${pinned.url}`
-  );
 }
 
-}
+const latestPosts =
+posts.slice(
+1,
+latestArticles + 1
+);
 
 console.log(
 [NEWSWIRE] Checking ${latestPosts.length} non-pinned posts.
@@ -1011,20 +1146,13 @@ const articles = [];
 for (
 const item of latestPosts
 ) {
-if (!item) {
-continue;
-}
+let article =
+normalizeArticle(
+item
+);
 
 const id =
-  item.id ||
-  item.id_hash ||
-  item.idHash ||
-  item.slug ||
-  item.url ||
-  item.href;
-
-let article =
-  normalizeArticle(
+  extractArticleId(
     item
   );
 
@@ -1050,51 +1178,47 @@ if (
         postData
       );
 
-    const normalizedDetailed =
+    const detailedArticle =
       normalizeArticle(
         detailed
       );
 
-    if (
-      normalizedDetailed
-    ) {
-      article =
-        {
-          ...(article || {}),
-          ...normalizedDetailed
-        };
-    }
+    article =
+      mergeArticle(
+        article,
+        detailedArticle
+      );
 
     /*
-     * Search the complete GraphQL response too.
-     * The date can exist outside the object that
-     * normalizeArticle() receives.
+     * Search the entire GraphQL response,
+     * because Rockstar can nest timestamps
+     * differently between operations.
      */
-    const graphqlDates =
-      findGraphqlDates(
+    const dates =
+      findNewswireDates(
         postData
       );
 
     if (
       article &&
       !article.date &&
-      graphqlDates.published
+      dates.published
     ) {
       article.date =
-        graphqlDates.published;
+        dates.published;
     }
 
     if (
       article &&
       !article.updatedAt &&
-      graphqlDates.updated
+      dates.updated
     ) {
       article.updatedAt =
-        graphqlDates.updated;
+        dates.updated;
     }
   } catch (error) {
     console.log(
-      `[NEWSWIRE] Failed to fetch NewswirePost ${id}: ${error.message}`
+      `[NEWSWIRE] NewswirePost ${id} failed: ${error.message}`
     );
   }
 }
@@ -1200,7 +1324,9 @@ known_urls:
 };
 }
 
-function uniqueArticles(articles) {
+function uniqueArticles(
+articles
+) {
 const unique =
 new Map();
 
@@ -1230,37 +1356,13 @@ if (!existing) {
   continue;
 }
 
-if (
-  !existing.title &&
-  article.title
-) {
-  existing.title =
-    article.title;
-}
-
-if (
-  !existing.date &&
-  article.date
-) {
-  existing.date =
-    article.date;
-}
-
-if (
-  !existing.lastModified &&
-  article.lastModified
-) {
-  existing.lastModified =
-    article.lastModified;
-}
-
-if (
-  !existing.updatedAt &&
-  article.updatedAt
-) {
-  existing.updatedAt =
-    article.updatedAt;
-}
+unique.set(
+  article.url,
+  mergeArticle(
+    existing,
+    article
+  )
+);
 
 }
 
@@ -1269,7 +1371,9 @@ return [
 ];
 }
 
-function sortArticles(articles) {
+function sortArticles(
+articles
+) {
 return [
 ...articles
 ].sort(
@@ -1347,16 +1451,17 @@ article.url
 continue;
 }
 
+/*
+ * If the URL changed but the publication date
+ * is exactly the same as the current state,
+ * consider it the same article.
+ */
 if (
   knownDate &&
   article.date &&
   article.date ===
     knownDate
 ) {
-  knownUrls.add(
-    article.url
-  );
-
   continue;
 }
 
@@ -1497,8 +1602,10 @@ IMPORTANT:
 
 
 lastModified is ONLY the HTTP Last-Modified
-header. It must never replace the publication
-date.
+header.
+
+
+It is never used as publication date.
 */
 article.lastModified =
 lastModified ||
@@ -1506,6 +1613,50 @@ article.lastModified ||
 null;
 
 return article;
+}
+
+function buildState(
+article,
+detectedAt,
+knownUrls
+) {
+return {
+url:
+article?.url ||
+null,
+
+title:
+  article?.title ||
+  null,
+
+date:
+  article?.date ||
+  null,
+
+last_modified:
+  article?.lastModified ||
+  null,
+
+updated_at:
+  article?.updatedAt ||
+  null,
+
+detected_at:
+  detectedAt,
+
+known_urls:
+  [
+    ...new Set(
+      knownUrls.filter(
+        Boolean
+      )
+    )
+  ].slice(
+    0,
+    25
+  )
+
+};
 }
 
 async function main() {
@@ -1558,10 +1709,6 @@ return;
 
 }
 
-console.log(
-[NEWSWIRE] Articles detected: ${articles.length}
-);
-
 const rawState =
 readJson(
 STATE_FILE,
@@ -1570,22 +1717,23 @@ null
 
 const {
 normalizedState,
-normalizedArticles,
-newArticles
+normalizedArticles
 } =
 findNewArticles(
 articles,
 rawState
 );
 
+console.log(
+[NEWSWIRE] Articles detected: ${normalizedArticles.length}
+);
+
 /*
 
-Complete metadata for every visible article,
-not only newly detected ones.
-
-
-This is important because an old state may already
-contain the correct URL but have null date/update.
+Always complete metadata for the five visible
+articles. This also repairs an existing state
+whose URL is already known but whose date/update
+fields are null.
 */
 for (
 const article of normalizedArticles
@@ -1594,7 +1742,7 @@ await completeArticleMetadata(
 article
 );
 console.log(
-  `[NEWSWIRE] Metadata: ${article.title || article.url}`
+  `[NEWSWIRE] Article: ${article.title || article.url}`
 );
 
 console.log(
@@ -1602,7 +1750,7 @@ console.log(
 );
 
 console.log(
-  `[NEWSWIRE] Last modified header: ${article.lastModified || 'unknown'}`
+  `[NEWSWIRE] Last-Modified header: ${article.lastModified || 'unknown'}`
 );
 
 console.log(
@@ -1613,21 +1761,20 @@ console.log(
 
 /*
 
-Re-run new article detection after metadata completion.
+Re-run detection after metadata completion.
 */
-const completed =
+const {
+newArticles
+} =
 findNewArticles(
 normalizedArticles,
 normalizedState
 );
 
-const completedNewArticles =
-completed.newArticles;
-
 /*
 
-If an existing state already points to the article
-but dates were missing, repair those fields.
+Find the currently stored article in the
+freshly completed list.
 */
 const currentArticle =
 normalizedState.url
@@ -1638,44 +1785,33 @@ normalizedState.url
 )
 : null;
 
+/*
+
+Repair existing state even if the URL is already
+known and only the dates were missing.
+*/
 if (
 currentArticle
 ) {
-const repairedState = {
-...normalizedState,
-
-  url:
-    currentArticle.url,
-
-  title:
-    currentArticle.title ||
-    normalizedState.title,
-
-  date:
-    currentArticle.date ||
-    normalizedState.date,
-
-  last_modified:
-    currentArticle.lastModified ||
-    normalizedState.last_modified,
-
-  updated_at:
-    currentArticle.updatedAt ||
-    normalizedState.updated_at
-};
-
-const stateChanged =
+const repairedState =
+buildState(
+currentArticle,
+normalizedState.detected_at ||
+detectedAt,
+normalizedState.known_urls
+);
+const changed =
+  repairedState.title !==
+    normalizedState.title ||
   repairedState.date !==
     normalizedState.date ||
   repairedState.last_modified !==
     normalizedState.last_modified ||
   repairedState.updated_at !==
-    normalizedState.updated_at ||
-  repairedState.title !==
-    normalizedState.title;
+    normalizedState.updated_at;
 
 if (
-  stateChanged
+  changed
 ) {
   writeJson(
     STATE_FILE,
@@ -1689,20 +1825,11 @@ if (
 
 }
 
-/*
-
-Use the completed article list for new article
-detection so the publication date can be used
-as the identity fallback.
-*/
-const finalNewArticles =
-completedNewArticles;
-
 if (
-!finalNewArticles.length
+!newArticles.length
 ) {
 console.log(
-'[NEWSWIRE] No new article.'
+'[NEWSWIRE] No new Newswire article.'
 );
 
 return;
@@ -1711,10 +1838,15 @@ return;
 
 /*
 
-Queue every unknown article.
+The newest article is the first one after sorting.
 */
+const sortedNewArticles =
+sortArticles(
+newArticles
+);
+
 for (
-const article of finalNewArticles
+const article of sortedNewArticles
 ) {
 addNotification(
 article,
@@ -1722,62 +1854,30 @@ detectedAt
 );
 }
 
-/*
+const latest =
+sortedNewArticles[0];
 
-Newest publication date first.
-*/
-const latestNew =
-sortArticles(
-finalNewArticles
-)[0];
+const knownUrls = [
+...normalizedState.known_urls,
 
-const knownUrls =
-new Set(
-normalizedState.known_urls
-);
+...normalizedArticles.map(
+  article =>
+    article.url
+)
 
-for (
-const article of normalizedArticles
-) {
-knownUrls.add(
-article.url
-);
-}
+];
 
 writeJson(
 STATE_FILE,
-{
-url:
-latestNew.url,
-
-  title:
-    latestNew.title,
-
-  date:
-    latestNew.date,
-
-  last_modified:
-    latestNew.lastModified,
-
-  updated_at:
-    latestNew.updatedAt,
-
-  detected_at:
-    detectedAt,
-
-  known_urls:
-    [
-      ...knownUrls
-    ].slice(
-      0,
-      25
-    )
-}
-
+buildState(
+latest,
+detectedAt,
+knownUrls
+)
 );
 
 console.log(
-[NEWSWIRE] ${finalNewArticles.length} new article(s) detected and notification queued.
+[NEWSWIRE] ${sortedNewArticles.length} new article(s) detected.
 );
 }
 
@@ -1787,19 +1887,7 @@ console.error(
 [NEWSWIRE] Fatal error: ${error.stack || error.message}
 );
 
-process.exitCode =
-  1;
+process.exitCode = 1;
 
 }
 );
-`,
-L3] "title": "newswire.js",
-L4] "modified_date": "2026-09-05T22:40:01Z",
-L5] "url": "https://github.com/FngGlitcher/RSGOracle/blob/main/src/newswire.js",
-L6] "display_url": "https://github.com/FngGlitcher/RSGOracle/blob/main/src/newswire.js",
-L7] "display_title": "newswire.js",
-L8] "structuredContent": {
-L9] "title": "newswire.js",
-L10] "content": "const fs = require('fs');
-const path = require('container.exec ...
-curl -L --fail --silent https://raw.githubusercontent.com/FngGlitcher/RSGOracle/main/src/newswire.js -o /tmp/newswire.js && wc -l /tmp/newswire.js && tail -40 /tmp/newswire.js'' failed with status 6.
