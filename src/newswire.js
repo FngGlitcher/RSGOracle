@@ -57,12 +57,10 @@ file,
 );
 } catch (error) {
 console.log(
-`[NEWSWIRE] Failed to read ${file}: ${error.message}`
+[NEWSWIRE] Failed to read ${file}: ${error.message}
 );
 
-```
 return fallback;
-```
 
 }
 }
@@ -145,11 +143,9 @@ String(url),
 NEWSWIRE_URL
 );
 
-```
 parsed.hash = '';
 
 return parsed.toString();
-```
 
 } catch {
 return null;
@@ -168,7 +164,6 @@ url,
 NEWSWIRE_URL
 );
 
-```
 return (
   parsed.hostname ===
     'www.rockstargames.com' &&
@@ -176,7 +171,6 @@ return (
     parsed.pathname
   )
 );
-```
 
 } catch {
 return false;
@@ -185,20 +179,20 @@ return false;
 
 /*
 
-* Recursively searches GraphQL data for publication/update
-* timestamps. Rockstar's GraphQL response can move these
-* fields around depending on the Newswire response shape.
-  */
-  function findGraphqlDates(
-  value,
-  result = {
-  published: null,
-  updated: null
-  }
-  ) {
-  if (!value) {
-  return result;
-  }
+Recursively searches GraphQL data for publication/update
+timestamps. Rockstar's GraphQL response can move these
+fields around depending on the Newswire response shape.
+*/
+function findGraphqlDates(
+value,
+result = {
+published: null,
+updated: null
+}
+) {
+if (!value) {
+return result;
+}
 
 if (Array.isArray(value)) {
 for (const item of value) {
@@ -208,9 +202,7 @@ result
 );
 }
 
-```
 return result;
-```
 
 }
 
@@ -261,14 +253,12 @@ parseDate(
 value[key]
 );
 
-```
   if (parsed) {
     result.published =
       parsed;
     break;
   }
 }
-```
 
 }
 
@@ -284,14 +274,12 @@ parseDate(
 value[key]
 );
 
-```
   if (parsed) {
     result.updated =
       parsed;
     break;
   }
 }
-```
 
 }
 
@@ -392,7 +380,6 @@ return {
 title:
 title || null,
 
-```
 url,
 
 date:
@@ -409,7 +396,6 @@ updatedAt:
   directUpdated ||
   dates.updated ||
   null
-```
 
 };
 }
@@ -427,7 +413,6 @@ attribute.replace(
 '\$&'
 );
 
-```
 const pattern =
   new RegExp(
     `<meta[^>]+(?:property|name)=["']${escaped}["'][^>]+content=["']([^"']+)["'][^>]*>`,
@@ -456,7 +441,6 @@ if (
     match[1]
   );
 }
-```
 
 }
 
@@ -479,9 +463,7 @@ result
 );
 }
 
-```
 return;
-```
 
 }
 
@@ -546,7 +528,7 @@ modified: null
 };
 
 const regex =
-/<script[^>]+type=["']application/ld+json["'][^>]*>([\s\S]*?)</script>/gi;
+/<script[^>]+type=["']application/ld+json["'][^>]>([\s\S]?)</script>/gi;
 
 let match;
 
@@ -560,7 +542,6 @@ JSON.parse(
 match[1].trim()
 );
 
-```
   findJsonLdDates(
     parsed,
     result
@@ -570,7 +551,6 @@ match[1].trim()
    * Ignore malformed JSON-LD blocks.
    */
 }
-```
 
 }
 
@@ -590,13 +570,13 @@ parseDate(
 extractMetaValue(
 html,
 [
-'article:published_time',
-'article:published',
+'article',
+'article',
 'datePublished',
 'datepublished',
 'publish_date',
 'publication_date',
-'og:published_time'
+'og'
 ]
 )
 );
@@ -606,12 +586,12 @@ parseDate(
 extractMetaValue(
 html,
 [
-'article:modified_time',
-'article:modified',
+'article',
+'article',
 'dateModified',
 'datemodified',
 'modified_date',
-'og:updated_time'
+'og'
 ]
 )
 );
@@ -621,27 +601,29 @@ cleanTitle(
 extractMetaValue(
 html,
 [
-'og:title',
-'twitter:title'
+'og',
+'twitter'
 ]
 )
 );
 
 /*
 
-* Rockstar currently renders the publication date
-* directly in the Newswire page as:
-*
-* 3 septembre 2026
-*
-* If JSON-LD/meta data is unavailable, look for a
-* human-readable date in the article page.
-  */
-  let visibleDate = null;
+Rockstar currently renders the publication date
+directly in the Newswire page as:
+
+
+3 septembre 2026
+
+
+If JSON-LD/meta data is unavailable, look for a
+human-readable date in the article page.
+*/
+let visibleDate = null;
 
 const visibleDateMatch =
 html.match(
-/\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b/i
+/\b(?|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b/i
 );
 
 if (
@@ -660,7 +642,6 @@ jsonLd.published ||
 visibleDate ||
 null,
 
-```
 modified:
   modifiedMeta ||
   jsonLd.modified ||
@@ -668,7 +649,6 @@ modified:
 
 title:
   title || null
-```
 
 };
 }
@@ -686,10 +666,9 @@ title: null
 
 try {
 console.log(
-`[NEWSWIRE] Reading article metadata: ${url}`
+[NEWSWIRE] Reading article metadata: ${url}
 );
 
-```
 const response =
   await fetch(
     url,
@@ -726,20 +705,17 @@ const html =
 return extractPageMetadata(
   html
 );
-```
 
 } catch (error) {
 console.log(
-`[NEWSWIRE] Failed to read article metadata: ${error.message}`
+[NEWSWIRE] Failed to read article metadata: ${error.message}
 );
 
-```
 return {
   published: null,
   modified: null,
   title: null
 };
-```
 
 }
 }
@@ -753,10 +729,9 @@ return null;
 
 try {
 console.log(
-`[NEWSWIRE] Reading last-modified header: ${url}`
+[NEWSWIRE] Reading last-modified header: ${url}
 );
 
-```
 let response =
   await fetch(
     url,
@@ -802,16 +777,13 @@ return (
     'last-modified'
   ) || null
 );
-```
 
 } catch (error) {
 console.log(
-`[NEWSWIRE] Failed to read last-modified header: ${error.message}`
+[NEWSWIRE] Failed to read last-modified header: ${error.message}
 );
 
-```
 return null;
-```
 
 }
 }
@@ -822,7 +794,7 @@ hash,
 variables
 ) {
 console.log(
-`[NEWSWIRE] GraphQL request: ${operationName}`
+[NEWSWIRE] GraphQL request: ${operationName}
 );
 
 const response =
@@ -831,7 +803,6 @@ GRAPHQL_URL,
 {
 method: 'POST',
 
-```
     headers: {
       'Content-Type':
         'application/json',
@@ -859,7 +830,6 @@ method: 'POST',
     })
   }
 );
-```
 
 const text =
 await response.text();
@@ -871,7 +841,7 @@ payload =
 JSON.parse(text);
 } catch {
 throw new Error(
-`Invalid GraphQL response: ${text.slice(0, 300)}`
+Invalid GraphQL response: ${text.slice(0, 300)}
 );
 }
 
@@ -880,7 +850,7 @@ if (
 ) {
 throw new Error(
 payload?.errors?.[0]?.message ||
-`GraphQL HTTP ${response.status}`
+GraphQL HTTP ${response.status}
 );
 }
 
@@ -978,7 +948,6 @@ NEWSWIRE_LIST_HASH,
 {
 tagId: 0,
 
-```
     page: 1,
 
     metaUrl:
@@ -990,7 +959,6 @@ tagId: 0,
       'en_us'
   }
 );
-```
 
 const posts =
 extractPosts(
@@ -998,19 +966,19 @@ data
 );
 
 console.log(
-`[NEWSWIRE] NewswireList returned ${posts.length} posts.`
+[NEWSWIRE] NewswireList returned ${posts.length} posts.
 );
 
 /*
 
-* Rockstar puts a pinned/featured article first.
-* Never consider that article part of the latest list.
-  */
-  const latestPosts =
-  posts.slice(
-  1,
-  latestArticles + 1
-  );
+Rockstar puts a pinned/featured article first.
+Never consider that article part of the latest list.
+*/
+const latestPosts =
+posts.slice(
+1,
+latestArticles + 1
+);
 
 if (
 posts.length
@@ -1020,7 +988,6 @@ normalizeArticle(
 posts[0]
 );
 
-```
 console.log(
   `[NEWSWIRE] Ignoring pinned article: ${pinned?.title || 'unknown'}`
 );
@@ -1032,12 +999,11 @@ if (
     `[NEWSWIRE] Pinned URL ignored: ${pinned.url}`
   );
 }
-```
 
 }
 
 console.log(
-`[NEWSWIRE] Checking ${latestPosts.length} non-pinned posts.`
+[NEWSWIRE] Checking ${latestPosts.length} non-pinned posts.
 );
 
 const articles = [];
@@ -1049,7 +1015,6 @@ if (!item) {
 continue;
 }
 
-```
 const id =
   item.id ||
   item.id_hash ||
@@ -1141,12 +1106,11 @@ if (
     article
   );
 }
-```
 
 }
 
 console.log(
-`[NEWSWIRE] GraphQL articles detected: ${articles.length}`
+[NEWSWIRE] GraphQL articles detected: ${articles.length}
 );
 
 return articles;
@@ -1183,7 +1147,6 @@ normalizeUrl(
 value
 );
 
-```
   if (
     normalized &&
     isNewswireArticleUrl(
@@ -1198,7 +1161,6 @@ value
     );
   }
 }
-```
 
 }
 
@@ -1224,7 +1186,6 @@ stateUrl
 return {
 ...state,
 
-```
 url:
   stateUrl &&
   isNewswireArticleUrl(
@@ -1235,7 +1196,6 @@ url:
 
 known_urls:
   knownUrls
-```
 
 };
 }
@@ -1252,7 +1212,6 @@ normalizeArticle(
 rawArticle
 );
 
-```
 if (!article) {
   continue;
 }
@@ -1302,7 +1261,6 @@ if (
   existing.updatedAt =
     article.updatedAt;
 }
-```
 
 }
 
@@ -1330,7 +1288,6 @@ a.date
 );
 }
 
-```
   if (
     a.date &&
     !b.date
@@ -1347,7 +1304,6 @@ a.date
 
   return 0;
 }
-```
 
 );
 }
@@ -1391,7 +1347,6 @@ article.url
 continue;
 }
 
-```
 if (
   knownDate &&
   article.date &&
@@ -1408,7 +1363,6 @@ if (
 newArticles.push(
   article
 );
-```
 
 }
 
@@ -1453,12 +1407,10 @@ if (
 exists
 ) {
 console.log(
-`[NEWSWIRE] Notification already queued: ${article.url}`
+[NEWSWIRE] Notification already queued: ${article.url}
 );
 
-```
 return false;
-```
 
 }
 
@@ -1466,7 +1418,6 @@ notifications.push({
 type:
 'newswire_new_post',
 
-```
 title:
   article.title,
 
@@ -1484,7 +1435,6 @@ updated_at:
 
 detected_at:
   detectedAt
-```
 
 });
 
@@ -1494,7 +1444,7 @@ notifications
 );
 
 console.log(
-`[NEWSWIRE] Notification queued: ${article.title || article.url}`
+[NEWSWIRE] Notification queued: ${article.title || article.url}
 );
 
 return true;
@@ -1512,12 +1462,10 @@ fetchNewswireLastModified(
 article.url
 ),
 
-```
   fetchNewswirePageMetadata(
     article.url
   )
 ]);
-```
 
 if (
 !article.date &&
@@ -1545,16 +1493,17 @@ pageMetadata.title;
 
 /*
 
-* IMPORTANT:
-*
-* lastModified is ONLY the HTTP Last-Modified
-* header. It must never replace the publication
-* date.
-  */
-  article.lastModified =
-  lastModified ||
-  article.lastModified ||
-  null;
+IMPORTANT:
+
+
+lastModified is ONLY the HTTP Last-Modified
+header. It must never replace the publication
+date.
+*/
+article.lastModified =
+lastModified ||
+article.lastModified ||
+null;
 
 return article;
 }
@@ -1570,9 +1519,7 @@ console.log(
 '[NEWSWIRE] Feature disabled.'
 );
 
-```
 return;
-```
 
 }
 
@@ -1589,7 +1536,7 @@ console.log(
 );
 
 console.log(
-`[NEWSWIRE] Latest article window: ${latestArticles}`
+[NEWSWIRE] Latest article window: ${latestArticles}
 );
 
 const detectedAt =
@@ -1604,17 +1551,15 @@ latestArticles
 );
 } catch (error) {
 console.error(
-`[NEWSWIRE] Request failed: ${error.message}`
+[NEWSWIRE] Request failed: ${error.message}
 );
 
-```
 return;
-```
 
 }
 
 console.log(
-`[NEWSWIRE] Articles detected: ${articles.length}`
+[NEWSWIRE] Articles detected: ${articles.length}
 );
 
 const rawState =
@@ -1635,24 +1580,20 @@ rawState
 
 /*
 
-* Complete metadata for every visible article,
-* not only newly detected ones.
-*
-* This is important because an old state may already
-* contain the correct URL but have null date/update.
-  */
-  for (
-  const article of normalizedArticles
-  ) {
-  await completeArticleMetadata(
-  article
-  );
+Complete metadata for every visible article,
+not only newly detected ones.
 
-```
+
+This is important because an old state may already
+contain the correct URL but have null date/update.
+*/
+for (
+const article of normalizedArticles
+) {
+await completeArticleMetadata(
+article
+);
 console.log(
-```
-
-```
   `[NEWSWIRE] Metadata: ${article.title || article.url}`
 );
 
@@ -1667,36 +1608,35 @@ console.log(
 console.log(
   `[NEWSWIRE] Last update: ${article.updatedAt || 'unknown'}`
 );
-```
 
 }
 
 /*
 
-* Re-run new article detection after metadata completion.
-  */
-  const completed =
-  findNewArticles(
-  normalizedArticles,
-  normalizedState
-  );
+Re-run new article detection after metadata completion.
+*/
+const completed =
+findNewArticles(
+normalizedArticles,
+normalizedState
+);
 
 const completedNewArticles =
 completed.newArticles;
 
 /*
 
-* If an existing state already points to the article
-* but dates were missing, repair those fields.
-  */
-  const currentArticle =
-  normalizedState.url
-  ? normalizedArticles.find(
-  article =>
-  article.url ===
-  normalizedState.url
-  )
-  : null;
+If an existing state already points to the article
+but dates were missing, repair those fields.
+*/
+const currentArticle =
+normalizedState.url
+? normalizedArticles.find(
+article =>
+article.url ===
+normalizedState.url
+)
+: null;
 
 if (
 currentArticle
@@ -1704,7 +1644,6 @@ currentArticle
 const repairedState = {
 ...normalizedState,
 
-```
   url:
     currentArticle.url,
 
@@ -1747,18 +1686,17 @@ if (
     '[NEWSWIRE] Existing state metadata repaired.'
   );
 }
-```
 
 }
 
 /*
 
-* Use the completed article list for new article
-* detection so the publication date can be used
-* as the identity fallback.
-  */
-  const finalNewArticles =
-  completedNewArticles;
+Use the completed article list for new article
+detection so the publication date can be used
+as the identity fallback.
+*/
+const finalNewArticles =
+completedNewArticles;
 
 if (
 !finalNewArticles.length
@@ -1767,33 +1705,31 @@ console.log(
 '[NEWSWIRE] No new article.'
 );
 
-```
 return;
-```
 
 }
 
 /*
 
-* Queue every unknown article.
-  */
-  for (
-  const article of finalNewArticles
-  ) {
-  addNotification(
-  article,
-  detectedAt
-  );
-  }
+Queue every unknown article.
+*/
+for (
+const article of finalNewArticles
+) {
+addNotification(
+article,
+detectedAt
+);
+}
 
 /*
 
-* Newest publication date first.
-  */
-  const latestNew =
-  sortArticles(
-  finalNewArticles
-  )[0];
+Newest publication date first.
+*/
+const latestNew =
+sortArticles(
+finalNewArticles
+)[0];
 
 const knownUrls =
 new Set(
@@ -1814,7 +1750,6 @@ STATE_FILE,
 url:
 latestNew.url,
 
-```
   title:
     latestNew.title,
 
@@ -1838,36 +1773,33 @@ latestNew.url,
       25
     )
 }
-```
 
 );
 
 console.log(
-`[NEWSWIRE] ${finalNewArticles.length} new article(s) detected and notification queued.`
+[NEWSWIRE] ${finalNewArticles.length} new article(s) detected and notification queued.
 );
 }
 
 main().catch(
 error => {
 console.error(
-`[NEWSWIRE] Fatal error: ${error.stack || error.message}`
+[NEWSWIRE] Fatal error: ${error.stack || error.message}
 );
 
-```
 process.exitCode =
   1;
-```
 
 }
 );
 `,
-L3]   "title": "newswire.js",
-L4]   "modified_date": "2026-09-05T22:40:01Z",
-L5]   "url": "https://github.com/FngGlitcher/RSGOracle/blob/main/src/newswire.js",
-L6]   "display_url": "https://github.com/FngGlitcher/RSGOracle/blob/main/src/newswire.js",
-L7]   "display_title": "newswire.js",
-L8]   "structuredContent": {
-L9]   "title": "newswire.js",
-L10]   "content": "const fs = require('fs');
+L3] "title": "newswire.js",
+L4] "modified_date": "2026-09-05T22:40:01Z",
+L5] "url": "https://github.com/FngGlitcher/RSGOracle/blob/main/src/newswire.js",
+L6] "display_url": "https://github.com/FngGlitcher/RSGOracle/blob/main/src/newswire.js",
+L7] "display_title": "newswire.js",
+L8] "structuredContent": {
+L9] "title": "newswire.js",
+L10] "content": "const fs = require('fs');
 const path = require('container.exec ...
 curl -L --fail --silent https://raw.githubusercontent.com/FngGlitcher/RSGOracle/main/src/newswire.js -o /tmp/newswire.js && wc -l /tmp/newswire.js && tail -40 /tmp/newswire.js'' failed with status 6.
