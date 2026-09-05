@@ -90,7 +90,7 @@
           "platform_path": "xboxone",
           "decrypt": true,
           "background_script": {
-            "enabled": true,
+            "enabled": false,
             "build": 3889,
             "sub": 0,
             "current": "3889_0"
@@ -101,7 +101,7 @@
           "platform_path": "xboxsx",
           "decrypt": true,
           "background_script": {
-            "enabled": true,
+            "enabled": false,
             "build": 1158,
             "sub": 13,
             "current": "1158_13"
