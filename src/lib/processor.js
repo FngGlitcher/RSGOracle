@@ -568,17 +568,32 @@ async function processTarget(
   const recovered =
     previous.status === 'unavailable';
 
+  const hasChanged =
+    changes.length > 0 ||
+    previous.last_hash !== dataHash;
+
   writeJson(
     currentPath(target),
     resolved
   );
 
   if (
-    config.features?.save_history !== false
+    config.features?.save_history !== false &&
+    hasChanged
   ) {
     writeJson(
       historyPath(target, timestamp),
       resolved
+    );
+
+    console.log(
+      `[HISTORY] Tunables history saved for ${id} because data changed`
+    );
+  } else if (
+    config.features?.save_history !== false
+  ) {
+    console.log(
+      `[HISTORY] No tunables history saved for ${id}: unchanged`
     );
   }
 
