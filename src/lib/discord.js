@@ -1,3 +1,6 @@
+const fs = require('fs');
+const path = require('path');
+
 const DISCORD_API_BASE =
   'https://discord.com/api/v10';
 
@@ -119,6 +122,70 @@ function formatSizeLine(
   return (
     `Size: ${previous} → ${current} bytes (${sign}${difference})`
   );
+}
+
+function loadTunablesSummary(
+  title,
+  platform
+) {
+  const file = path.join(
+    __dirname,
+    '..',
+    '..',
+    'data',
+    'current',
+    String(title),
+    `${String(platform)}.json`
+  );
+
+  if (!fs.existsSync(file)) {
+    return {
+      eventWeekly: null,
+      tunableVersion: null
+    };
+  }
+
+  try {
+    const data =
+      JSON.parse(
+        fs.readFileSync(
+          file,
+          'utf8'
+        )
+      );
+
+    const tunables =
+      data?.TUNABLES;
+
+    if (
+      !tunables ||
+      typeof tunables !== 'object'
+    ) {
+      return {
+        eventWeekly: null,
+        tunableVersion: null
+      };
+    }
+
+    return {
+      eventWeekly:
+        tunables.EVENT_WKLY ??
+        null,
+
+      tunableVersion:
+        tunables.TUNABLE_VERSION ??
+        null
+    };
+  } catch (error) {
+    console.warn(
+      `[DISCORD] Unable to read tunables summary: ${error.message}`
+    );
+
+    return {
+      eventWeekly: null,
+      tunableVersion: null
+    };
+  }
 }
 
 async function discordRequest(
@@ -321,8 +388,35 @@ function formatUpdate({
       platform
     );
 
-  return [
-    `**Tunables ${displayTitle} ${displayPlatform} Updated at ${formatDetectionTime(detectedAt)}**`,
+  const tunables =
+    loadTunablesSummary(
+      title,
+      platform
+    );
+
+  const lines = [
+    `**Tunables ${displayTitle} ${displayPlatform} Updated at ${formatDetectionTime(detectedAt)}**`
+  ];
+
+  if (
+    tunables.eventWeekly !== null &&
+    tunables.eventWeekly !== undefined
+  ) {
+    lines.push(
+      `EVENT_WKLY: **${tunables.eventWeekly}**`
+    );
+  }
+
+  if (
+    tunables.tunableVersion !== null &&
+    tunables.tunableVersion !== undefined
+  ) {
+    lines.push(
+      `TUNABLE_VERSION: **${tunables.tunableVersion}**`
+    );
+  }
+
+  lines.push(
     `Last modified: \`${lastModified || 'unknown'}\``,
     `Prev last modified: \`${previousLastModified || 'unknown'}\``,
     formatSizeLine(
@@ -330,7 +424,9 @@ function formatUpdate({
       currentSize
     ),
     `Changes: +${counts.added || 0} ~${counts.changed || 0} -${counts.removed || 0}`
-  ]
+  );
+
+  return lines
     .filter(Boolean)
     .join('\n');
 }
