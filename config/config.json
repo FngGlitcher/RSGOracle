@@ -47,9 +47,9 @@
           "decrypt": true,
           "background_script": {
             "enabled": true,
-            "build": 3889,
+            "build": 3888,
             "sub": 0,
-            "current": "3889_0"
+            "current": "3888_0"
           }
         },
         "pcrosalt": {
