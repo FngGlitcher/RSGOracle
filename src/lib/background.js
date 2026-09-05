@@ -466,53 +466,57 @@ async function processBackgroundTarget(
   const detectedAt =
     new Date().toISOString();
 
+  const checkNewBuilds =
+    config.background_scripts
+      .check_new_builds !== false;
+
   let latestBuild =
-    await scanBuilds(
-      config,
-      target,
-      configuredBuildValue
+    null;
+
+  if (checkNewBuilds) {
+    latestBuild =
+      await scanBuilds(
+        config,
+        target,
+        configuredBuildValue
+      );
+  } else {
+    console.log(
+      `[BACKGROUND] ${target.title}/${target.platform}: new build scan disabled, checking current build only ${configuredBuildValue}`
     );
-
-  if (!latestBuild) {
-    const existing =
-      backgroundState[stateKey];
-
-    if (existing) {
-      existing.last_checked =
-        detectedAt;
-
-      existing.status =
-        'no_build_found';
-
-      existing.last_error =
-        null;
-    }
-
-    return {
-      stateChanged: Boolean(existing),
-      configChanged: false,
-      notifications: []
-    };
   }
+
+  /*
+   * When new-build scanning is disabled,
+   * always use the configured/current build.
+   *
+   * When scanning is enabled, use the highest
+   * build found when available.
+   */
+  const selectedBuild =
+    checkNewBuilds && latestBuild
+      ? latestBuild
+      : previousBuild;
 
   const latestBuildValue =
     buildValue(
-      latestBuild.build,
-      latestBuild.sub
+      selectedBuild.build,
+      selectedBuild.sub
     );
 
   const buildChanged =
+    checkNewBuilds &&
     compareBuilds(
-      latestBuild,
+      selectedBuild,
       previousBuild
     ) > 0;
 
   if (buildChanged) {
     endpoint.build =
-      latestBuild.build;
+      selectedBuild.build;
 
     endpoint.sub =
-      latestBuild.sub;
+      selectedBuild.sub;
 
     endpoint.current =
       latestBuildValue;
@@ -521,11 +525,6 @@ async function processBackgroundTarget(
       `[BACKGROUND] ${target.title}/${target.platform}: new build ${latestBuildValue} (previous ${configuredBuildValue})`
     );
   }
-
-  const selectedBuild =
-    buildChanged
-      ? latestBuild
-      : previousBuild;
 
   let downloaded;
 
@@ -552,10 +551,7 @@ async function processBackgroundTarget(
       sub:
         selectedBuild.sub,
       build_value:
-        buildValue(
-          selectedBuild.build,
-          selectedBuild.sub
-        ),
+        latestBuildValue,
       last_checked:
         detectedAt,
       status:
@@ -567,23 +563,24 @@ async function processBackgroundTarget(
     return {
       stateChanged: true,
       configChanged: buildChanged,
-      notifications: buildChanged
-        ? [
-            {
-              event:
-                'background_new_build',
-              target,
-              metadata: {
-                build:
-                  latestBuildValue,
-                previous_build:
-                  configuredBuildValue,
-                detected_at:
-                  detectedAt
+      notifications:
+        buildChanged
+          ? [
+              {
+                event:
+                  'background_new_build',
+                target,
+                metadata: {
+                  build:
+                    latestBuildValue,
+                  previous_build:
+                    configuredBuildValue,
+                  detected_at:
+                    detectedAt
+                }
               }
-            }
-          ]
-        : []
+            ]
+          : []
     };
   }
 
@@ -634,7 +631,6 @@ async function processBackgroundTarget(
   }
 
   /*
-   * IMPORTANT:
    * A new build must generate background_new_build
    * even when the downloaded file hash is unchanged.
    */
@@ -663,19 +659,14 @@ async function processBackgroundTarget(
         last_modified:
           downloaded.lastModified,
         build:
-          buildValue(
-            selectedBuild.build,
-            selectedBuild.sub
-          ),
+          latestBuildValue,
         previous_content_length:
           downloaded.contentLength,
         content_length:
           downloaded.contentLength
       }
     });
-  } else if (
-    hashChanged
-  ) {
+  } else if (hashChanged) {
     eventNotifications.push({
       event:
         'background_updated',
@@ -689,10 +680,7 @@ async function processBackgroundTarget(
           previousState.last_modified ||
           null,
         build:
-          buildValue(
-            selectedBuild.build,
-            selectedBuild.sub
-          ),
+          latestBuildValue,
         previous_content_length:
           previousState.content_length ??
           downloaded.contentLength,
@@ -708,10 +696,7 @@ async function processBackgroundTarget(
     sub:
       selectedBuild.sub,
     build_value:
-      buildValue(
-        selectedBuild.build,
-        selectedBuild.sub
-      ),
+      latestBuildValue,
     hash:
       downloaded.hash,
     last_modified:
@@ -770,7 +755,10 @@ async function processBackgroundScripts(
   ] of Object.entries(
     config.titles || {}
   )) {
-    if (!titleConfig.enabled) {
+    if (
+      !titleConfig ||
+      titleConfig.enabled === false
+    ) {
       continue;
     }
 
@@ -780,12 +768,11 @@ async function processBackgroundScripts(
     ] of Object.entries(
       titleConfig.endpoints || {}
     )) {
-      const backgroundScript =
-        endpoint.background_script;
-
       if (
-        !backgroundScript ||
-        !backgroundScript.enabled
+        !endpoint ||
+        endpoint.enabled === false ||
+        !endpoint.background_script ||
+        endpoint.background_script.enabled === false
       ) {
         continue;
       }
@@ -794,12 +781,8 @@ async function processBackgroundScripts(
         title,
         platform,
         background_script:
-          backgroundScript
+          endpoint.background_script
       };
-
-      console.log(
-        `[BACKGROUND] Starting ${getTitleDisplayName(title)}/${getPlatformDisplayName(platform)}...`
-      );
 
       try {
         const result =
@@ -809,16 +792,20 @@ async function processBackgroundScripts(
             state
           );
 
-        if (result.stateChanged) {
+        if (
+          result.stateChanged
+        ) {
           stateChanged = true;
         }
 
-        if (result.configChanged) {
+        if (
+          result.configChanged
+        ) {
           configChanged = true;
         }
 
         if (
-          result.notifications.length
+          result.notifications?.length
         ) {
           notifications.push(
             ...result.notifications
@@ -826,7 +813,7 @@ async function processBackgroundScripts(
         }
       } catch (error) {
         console.error(
-          `[BACKGROUND] ${title}/${platform}: ERROR: ${error.message}`
+          `[BACKGROUND] ${getTitleDisplayName(title)}/${getPlatformDisplayName(platform)}: ${error.message}`
         );
 
         if (error.stack) {
@@ -849,8 +836,5 @@ module.exports = {
   processBackgroundScripts,
   processBackgroundTarget,
   scanBuilds,
-  downloadBackground,
-  buildUrl,
-  getTitleDisplayName,
-  getPlatformDisplayName
+  downloadBackground
 };
