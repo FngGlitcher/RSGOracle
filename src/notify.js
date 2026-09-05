@@ -2,319 +2,316 @@ const fs = require('fs');
 const path = require('path');
 
 const {
-loadConfig,
-ROOT
+  loadConfig,
+  ROOT
 } = require('./lib/config');
 
 const {
-sendDM,
-formatUpdate,
-formatFirstSeen,
-formatRecovery,
-formatBackgroundNewBuild,
-formatBackgroundFirstSeen,
-formatBackgroundUpdated,
-formatNewswireArticle
+  sendDM,
+  formatUpdate,
+  formatFirstSeen,
+  formatRecovery,
+  formatBackgroundNewBuild,
+  formatBackgroundFirstSeen,
+  formatBackgroundUpdated,
+  formatNewswireArticle
 } = require('./lib/discord');
 
 async function main() {
-const config =
-loadConfig();
+  const config =
+    loadConfig();
 
-const file =
-path.join(
-ROOT,
-'data',
-'state',
-'pending-notifications.json'
-);
+  const file =
+    path.join(
+      ROOT,
+      'data',
+      'state',
+      'pending-notifications.json'
+    );
 
-if (!fs.existsSync(file)) {
-return;
-}
+  if (!fs.existsSync(file)) {
+    return;
+  }
 
-const events =
-JSON.parse(
-fs.readFileSync(
-file,
-'utf8'
-)
-);
+  const events =
+    JSON.parse(
+      fs.readFileSync(
+        file,
+        'utf8'
+      )
+    );
 
-if (
-!config.features.discord ||
-!events.length
-) {
-fs.writeFileSync(
-file,
-'[]\n'
-);
+  if (
+    !config.features.discord ||
+    !events.length
+  ) {
+    fs.writeFileSync(
+      file,
+      '[]\n'
+    );
 
-```
-return;
-```
+    return;
+  }
 
-}
+  const token =
+    process.env[
+      config.discord.token_env
+    ];
 
-const token =
-process.env[
-config.discord.token_env
-];
+  const userId =
+    process.env[
+      config.discord.user_id_env
+    ];
 
-const userId =
-process.env[
-config.discord.user_id_env
-];
+  if (!token || !userId) {
+    console.log(
+      'Discord notification skipped: missing secret/user id.'
+    );
 
-if (!token || !userId) {
-console.log(
-'Discord notification skipped: missing secret/user id.'
-);
+    return;
+  }
 
-```
-return;
-```
+  for (const event of events) {
+    let content;
 
-}
+    /*
+     * Tunables updated
+     */
+    if (
+      event.event ===
+      'updated'
+    ) {
+      content =
+        formatUpdate({
+          title:
+            event.target.title,
 
-for (const event of events) {
-let content;
+          platform:
+            event.target.platform,
 
-```
-/*
- * Tunables updated
- */
-if (
-  event.event ===
-  'updated'
-) {
-  content =
-    formatUpdate({
-      title:
-        event.target.title,
+          lastModified:
+            event.metadata.last_modified,
 
-      platform:
-        event.target.platform,
+          previousLastModified:
+            event.metadata
+              .previous_last_modified,
 
-      lastModified:
-        event.metadata.last_modified,
+          changes:
+            event.changes,
 
-      previousLastModified:
-        event.metadata
-          .previous_last_modified,
+          detectedAt:
+            event.metadata.detected_at,
 
-      changes:
-        event.changes,
+          previousSize:
+            event.metadata
+              .previous_content_length,
 
-      detectedAt:
-        event.metadata.detected_at,
+          currentSize:
+            event.metadata
+              .content_length
+        });
+    }
 
-      previousSize:
-        event.metadata
-          .previous_content_length,
+    /*
+     * Tunables first seen
+     */
+    else if (
+      event.event ===
+      'first_seen'
+    ) {
+      content =
+        formatFirstSeen({
+          title:
+            event.target.title,
 
-      currentSize:
-        event.metadata
-          .content_length
+          platform:
+            event.target.platform,
+
+          lastModified:
+            event.metadata.last_modified,
+
+          detectedAt:
+            event.metadata.detected_at,
+
+          previousSize:
+            event.metadata
+              .previous_content_length,
+
+          currentSize:
+            event.metadata
+              .content_length
+        });
+    }
+
+    /*
+     * Tunables recovery
+     */
+    else if (
+      event.event ===
+      'recovery_wait'
+    ) {
+      content =
+        formatRecovery({
+          title:
+            event.target.title,
+
+          platform:
+            event.target.platform,
+
+          lastModified:
+            event.metadata.last_modified,
+
+          detectedAt:
+            event.metadata.detected_at
+        });
+    }
+
+    /*
+     * Background Script new build
+     */
+    else if (
+      event.event ===
+      'background_new_build'
+    ) {
+      content =
+        formatBackgroundNewBuild({
+          title:
+            event.target.title,
+
+          platform:
+            event.target.platform,
+
+          build:
+            event.metadata.build,
+
+          previousBuild:
+            event.metadata.previous_build
+        });
+    }
+
+    /*
+     * Background Script first seen
+     */
+    else if (
+      event.event ===
+      'background_first_seen'
+    ) {
+      content =
+        formatBackgroundFirstSeen({
+          title:
+            event.target.title,
+
+          platform:
+            event.target.platform,
+
+          detectedAt:
+            event.metadata.detected_at,
+
+          lastModified:
+            event.metadata.last_modified,
+
+          build:
+            event.metadata.build,
+
+          previousSize:
+            event.metadata
+              .previous_content_length,
+
+          currentSize:
+            event.metadata
+              .content_length
+        });
+    }
+
+    /*
+     * Background Script updated
+     */
+    else if (
+      event.event ===
+      'background_updated'
+    ) {
+      content =
+        formatBackgroundUpdated({
+          title:
+            event.target.title,
+
+          platform:
+            event.target.platform,
+
+          detectedAt:
+            event.metadata.detected_at,
+
+          lastModified:
+            event.metadata.last_modified,
+
+          previousLastModified:
+            event.metadata
+              .previous_last_modified,
+
+          build:
+            event.metadata.build,
+
+          previousSize:
+            event.metadata
+              .previous_content_length,
+
+          currentSize:
+            event.metadata
+              .content_length
+        });
+    }
+
+    /*
+     * Rockstar Newswire new article
+     */
+    else if (
+      event.event ===
+      'newswire_new_article'
+    ) {
+      content =
+        formatNewswireArticle({
+          title:
+            event.title,
+
+          url:
+            event.url,
+
+          date:
+            event.date,
+
+          detectedAt:
+            event.detected_at
+        });
+    }
+
+    /*
+     * Unknown event
+     */
+    else {
+      console.log(
+        `Unknown notification event skipped: ${event.event}`
+      );
+
+      continue;
+    }
+
+    await sendDM({
+      token,
+      userId,
+      content
     });
-}
+  }
 
-/*
- * Tunables first seen
- */
-else if (
-  event.event ===
-  'first_seen'
-) {
-  content =
-    formatFirstSeen({
-      title:
-        event.target.title,
-
-      platform:
-        event.target.platform,
-
-      lastModified:
-        event.metadata.last_modified,
-
-      detectedAt:
-        event.metadata.detected_at,
-
-      previousSize:
-        event.metadata
-          .previous_content_length,
-
-      currentSize:
-        event.metadata
-          .content_length
-    });
-}
-
-/*
- * Tunables recovery
- */
-else if (
-  event.event ===
-  'recovery_wait'
-) {
-  content =
-    formatRecovery({
-      title:
-        event.target.title,
-
-      platform:
-        event.target.platform,
-
-      lastModified:
-        event.metadata.last_modified,
-
-      detectedAt:
-        event.metadata.detected_at
-    });
-}
-
-/*
- * Background Script new build
- */
-else if (
-  event.event ===
-  'background_new_build'
-) {
-  content =
-    formatBackgroundNewBuild({
-      title:
-        event.target.title,
-
-      platform:
-        event.target.platform,
-
-      build:
-        event.metadata.build,
-
-      previousBuild:
-        event.metadata.previous_build
-    });
-}
-
-/*
- * Background Script first seen
- */
-else if (
-  event.event ===
-  'background_first_seen'
-) {
-  content =
-    formatBackgroundFirstSeen({
-      title:
-        event.target.title,
-
-      platform:
-        event.target.platform,
-
-      detectedAt:
-        event.metadata.detected_at,
-
-      lastModified:
-        event.metadata.last_modified,
-
-      build:
-        event.metadata.build,
-
-      previousSize:
-        event.metadata
-          .previous_content_length,
-
-      currentSize:
-        event.metadata
-          .content_length
-    });
-}
-
-/*
- * Background Script updated
- */
-else if (
-  event.event ===
-  'background_updated'
-) {
-  content =
-    formatBackgroundUpdated({
-      title:
-        event.target.title,
-
-      platform:
-        event.target.platform,
-
-      detectedAt:
-        event.metadata.detected_at,
-
-      lastModified:
-        event.metadata.last_modified,
-
-      previousLastModified:
-        event.metadata
-          .previous_last_modified,
-
-      build:
-        event.metadata.build,
-
-      previousSize:
-        event.metadata
-          .previous_content_length,
-
-      currentSize:
-        event.metadata
-          .content_length
-    });
-}
-
-/*
- * Rockstar Newswire new article
- */
-else if (
-  event.event ===
-  'newswire_new_article'
-) {
-  content =
-    formatNewswireArticle({
-      title:
-        event.title,
-
-      url:
-        event.url
-    });
-}
-
-/*
- * Unknown event
- */
-else {
-  console.log(
-    `Unknown notification event skipped: ${event.event}`
+  fs.writeFileSync(
+    file,
+    '[]\n'
   );
-
-  continue;
-}
-
-await sendDM({
-  token,
-  userId,
-  content
-});
-```
-
-}
-
-fs.writeFileSync(
-file,
-'[]\n'
-);
 }
 
 main().catch(error => {
-console.error(
-error
-);
+  console.error(
+    error
+  );
 
-process.exit(1);
+  process.exit(1);
 });
