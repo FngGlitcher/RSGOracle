@@ -2,14 +2,15 @@ const fs = require("fs");
 const path = require("path");
 
 const NEWSWIRE_URL = "https://www.rockstargames.com/newswire";
-const GRAPHQL_URL = "https://www.rockstargames.com/graphql";
-
-const NEWSWIRE_LIST_HASH = "NewswireList";
-const NEWSWIRE_POST_HASH = "NewswirePost";
 
 const ROOT_DIR = path.resolve(__dirname, "..");
 const CONFIG_FILE = path.join(ROOT_DIR, "config", "config.json");
-const STATE_FILE = path.join(ROOT_DIR, "data", "state", "newswire.json");
+const STATE_FILE = path.join(
+  ROOT_DIR,
+  "data",
+  "state",
+  "newswire.json"
+);
 const NOTIFICATIONS_FILE = path.join(
   ROOT_DIR,
   "data",
@@ -23,19 +24,25 @@ function readJson(file) {
       return null;
     }
 
-    return JSON.parse(fs.readFileSync(file, "utf8"));
+    return JSON.parse(
+      fs.readFileSync(file, "utf8")
+    );
   } catch (error) {
     console.log(
       `[NEWSWIRE] Failed to read ${file}: ${error.message}`
     );
+
     return null;
   }
 }
 
 function writeJson(file, data) {
-  fs.mkdirSync(path.dirname(file), {
-    recursive: true
-  });
+  fs.mkdirSync(
+    path.dirname(file),
+    {
+      recursive: true
+    }
+  );
 
   fs.writeFileSync(
     file,
@@ -45,11 +52,11 @@ function writeJson(file, data) {
 }
 
 function decodeHtml(value) {
-  if (!value || typeof value !== "string") {
+  if (!value) {
     return value;
   }
 
-  return value
+  return String(value)
     .replace(/&amp;/gi, "&")
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
@@ -60,19 +67,9 @@ function decodeHtml(value) {
     .replace(/&#47;/gi, "/")
     .replace(/&#x27;/gi, "'")
     .replace(/&#34;/gi, '"')
-    .trim();
-}
-
-function cleanTitle(value) {
-  if (!value) {
-    return null;
-  }
-
-  const title = decodeHtml(String(value))
+    .replace(/<[^>]+>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-
-  return title || null;
 }
 
 function normalizeUrl(value) {
@@ -83,19 +80,18 @@ function normalizeUrl(value) {
   let url = String(value).trim();
 
   if (url.startsWith("/")) {
-    url = `https://www.rockstargames.com${url}`;
-  }
-
-  if (!url.startsWith("http://") && !url.startsWith("https://")) {
-    return null;
+    url =
+      `https://www.rockstargames.com${url}`;
   }
 
   try {
     const parsed = new URL(url);
 
     if (
-      parsed.hostname !== "www.rockstargames.com" &&
-      parsed.hostname !== "rockstargames.com"
+      parsed.hostname !==
+        "www.rockstargames.com" &&
+      parsed.hostname !==
+        "rockstargames.com"
     ) {
       return null;
     }
@@ -109,27 +105,13 @@ function normalizeUrl(value) {
   }
 }
 
-function isNewswireArticleUrl(value) {
-  const url = normalizeUrl(value);
-
-  if (!url) {
-    return false;
-  }
-
-  return (
-    /\/newswire\/article\//i.test(url) &&
-    !/\/newswire\/?$/i.test(url)
+function isArticleUrl(url) {
+  return Boolean(
+    url &&
+      /rockstargames\.com\/newswire\/article\//i.test(
+        url
+      )
   );
-}
-
-function isValidDate(value) {
-  if (!value) {
-    return false;
-  }
-
-  const date = new Date(value);
-
-  return !Number.isNaN(date.getTime());
 }
 
 function normalizeDate(value) {
@@ -137,23 +119,24 @@ function normalizeDate(value) {
     return null;
   }
 
-  if (value instanceof Date) {
-    return isValidDate(value)
-      ? value.toISOString()
-      : null;
-  }
+  const text =
+    String(value).trim();
 
-  const stringValue = String(value).trim();
-
-  if (!stringValue) {
+  if (!text) {
     return null;
   }
 
-  if (isValidDate(stringValue)) {
-    return new Date(stringValue).toISOString();
+  const date = new Date(text);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return null;
   }
 
-  return null;
+  return date.toISOString();
 }
 
 const MONTHS = {
@@ -188,25 +171,37 @@ const MONTHS = {
 };
 
 function parseHumanDate(value) {
-  if (!value || typeof value !== "string") {
+  if (!value) {
     return null;
   }
 
-  const text = value
-    .replace(/\s+/g, " ")
-    .trim();
+  const text =
+    String(value)
+      .replace(/\s+/g, " ")
+      .trim();
 
   let match = text.match(
     /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s+(\d{4})\b/i
   );
 
   if (match) {
-    const month = MONTHS[match[1].toLowerCase()];
-    const day = Number(match[2]);
-    const year = Number(match[3]);
+    const year =
+      Number(match[3]);
+
+    const month =
+      MONTHS[
+        match[1].toLowerCase()
+      ];
+
+    const day =
+      Number(match[2]);
 
     return new Date(
-      Date.UTC(year, month, day)
+      Date.UTC(
+        year,
+        month,
+        day
+      )
     ).toISOString();
   }
 
@@ -215,248 +210,83 @@ function parseHumanDate(value) {
   );
 
   if (match) {
-    const day = Number(match[1]);
-    const month = MONTHS[match[2].toLowerCase()];
-    const year = Number(match[3]);
+    const day =
+      Number(match[1]);
+
+    const month =
+      MONTHS[
+        match[2].toLowerCase()
+      ];
+
+    const year =
+      Number(match[3]);
 
     return new Date(
-      Date.UTC(year, month, day)
+      Date.UTC(
+        year,
+        month,
+        day
+      )
     ).toISOString();
   }
 
   return null;
 }
 
-function findDateInObject(object, keys) {
-  if (!object || typeof object !== "object") {
+function findDateInText(text) {
+  if (!text) {
     return null;
   }
 
-  for (const key of keys) {
-    if (
-      Object.prototype.hasOwnProperty.call(object, key)
-    ) {
-      const value = object[key];
-
-      const normalized = normalizeDate(value);
-
-      if (normalized) {
-        return normalized;
-      }
-
-      const human = parseHumanDate(
-        typeof value === "string"
-          ? value
-          : ""
-      );
-
-      if (human) {
-        return human;
-      }
-    }
-  }
-
-  return null;
-}
-
-function recursivelyFindDate(
-  object,
-  keys,
-  depth = 0
-) {
-  if (!object || depth > 12) {
-    return null;
-  }
-
-  if (Array.isArray(object)) {
-    for (const item of object) {
-      const found = recursivelyFindDate(
-        item,
-        keys,
-        depth + 1
-      );
-
-      if (found) {
-        return found;
-      }
-    }
-
-    return null;
-  }
-
-  if (typeof object !== "object") {
-    return null;
-  }
-
-  const direct = findDateInObject(
-    object,
-    keys
-  );
-
-  if (direct) {
-    return direct;
-  }
-
-  for (const value of Object.values(object)) {
-    if (
-      value &&
-      typeof value === "object"
-    ) {
-      const found = recursivelyFindDate(
-        value,
-        keys,
-        depth + 1
-      );
-
-      if (found) {
-        return found;
-      }
-    }
-  }
-
-  return null;
-}
-
-function recursivelyFindString(
-  object,
-  keys,
-  depth = 0
-) {
-  if (!object || depth > 12) {
-    return null;
-  }
-
-  if (Array.isArray(object)) {
-    for (const item of object) {
-      const found = recursivelyFindString(
-        item,
-        keys,
-        depth + 1
-      );
-
-      if (found) {
-        return found;
-      }
-    }
-
-    return null;
-  }
-
-  if (typeof object !== "object") {
-    return null;
-  }
-
-  for (const key of keys) {
-    if (
-      Object.prototype.hasOwnProperty.call(
-        object,
-        key
-      )
-    ) {
-      const value = object[key];
-
-      if (
-        typeof value === "string" &&
-        value.trim()
-      ) {
-        return value.trim();
-      }
-    }
-  }
-
-  for (const value of Object.values(object)) {
-    if (
-      value &&
-      typeof value === "object"
-    ) {
-      const found = recursivelyFindString(
-        value,
-        keys,
-        depth + 1
-      );
-
-      if (found) {
-        return found;
-      }
-    }
-  }
-
-  return null;
-}
-
-function normalizeArticle(raw) {
-  if (!raw || typeof raw !== "object") {
-    return null;
-  }
-
-  const url = normalizeUrl(
-    recursivelyFindString(raw, [
-      "url",
-      "canonicalUrl",
-      "canonical_url",
-      "href",
-      "link",
-      "permalink"
-    ])
-  );
-
-  if (!isNewswireArticleUrl(url)) {
-    return null;
-  }
-
-  const title = cleanTitle(
-    recursivelyFindString(raw, [
-      "title",
-      "name",
-      "headline"
-    ])
-  );
-
-  const date = recursivelyFindDate(raw, [
-    "datePublished",
-    "date_published",
-    "publishedAt",
-    "published_at",
-    "publicationDate",
-    "publication_date",
-    "publishDate",
-    "publish_date",
-    "published",
-    "createdAt",
-    "created_at",
-    "publishedDate",
-    "published_date"
-  ]);
-
-  const updatedAt = recursivelyFindDate(raw, [
-    "dateModified",
-    "date_modified",
-    "updatedAt",
-    "updated_at",
-    "modifiedAt",
-    "modified_at",
-    "modifiedDate",
-    "modified_date",
-    "lastUpdated",
-    "last_updated",
-    "updated"
-  ]);
-
-  return {
-    title: title || null,
-    url,
-    date: date || null,
-    updatedAt: updatedAt || null,
-    lastModified: null
-  };
-}
-
-function extractMetaValue(html, names) {
-  for (const name of names) {
-    const escaped = name.replace(
-      /[.*+?^${}()|[\]\\]/g,
-      "\\$&"
+  const iso =
+    text.match(
+      /\b20\d{2}-\d{2}-\d{2}(?:T[0-9:.+-]+Z?)?\b/
     );
+
+  if (iso) {
+    const parsed =
+      normalizeDate(iso[0]);
+
+    if (parsed) {
+      return parsed;
+    }
+  }
+
+  const english =
+    text.match(
+      /\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+20\d{2}\b/i
+    );
+
+  if (english) {
+    return parseHumanDate(
+      english[0]
+    );
+  }
+
+  const french =
+    text.match(
+      /\b\d{1,2}\s+(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre)\s+20\d{2}\b/i
+    );
+
+  if (french) {
+    return parseHumanDate(
+      french[0]
+    );
+  }
+
+  return null;
+}
+
+function extractMeta(
+  html,
+  names
+) {
+  for (const name of names) {
+    const escaped =
+      name.replace(
+        /[.*+?^${}()|[\]\\]/g,
+        "\\$&"
+      );
 
     const patterns = [
       new RegExp(
@@ -470,10 +300,13 @@ function extractMetaValue(html, names) {
     ];
 
     for (const pattern of patterns) {
-      const match = html.match(pattern);
+      const match =
+        html.match(pattern);
 
-      if (match && match[1]) {
-        return decodeHtml(match[1]);
+      if (match) {
+        return decodeHtml(
+          match[1]
+        );
       }
     }
   }
@@ -482,117 +315,95 @@ function extractMetaValue(html, names) {
 }
 
 function extractJsonLdDates(html) {
-  const result = {
-    published: null,
-    modified: null
-  };
+  let published = null;
+  let modified = null;
 
-  const matches = html.match(
-    /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
-  );
+  const blocks =
+    html.match(
+      /<script[^>]+type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi
+    ) || [];
 
-  if (!matches) {
-    return result;
-  }
-
-  for (const block of matches) {
-    const content = block
-      .replace(
-        /<script[^>]*>/i,
-        ""
-      )
-      .replace(
-        /<\/script>$/i,
-        ""
-      )
-      .trim();
+  for (const block of blocks) {
+    const body =
+      block
+        .replace(
+          /<script[^>]*>/i,
+          ""
+        )
+        .replace(
+          /<\/script>$/i,
+          ""
+        )
+        .trim();
 
     try {
-      const json = JSON.parse(content);
+      const json =
+        JSON.parse(body);
 
-      if (!result.published) {
-        result.published =
-          recursivelyFindDate(json, [
-            "datePublished",
-            "date_published"
-          ]);
-      }
+      const values =
+        Array.isArray(json)
+          ? json
+          : [json];
 
-      if (!result.modified) {
-        result.modified =
-          recursivelyFindDate(json, [
-            "dateModified",
-            "date_modified"
-          ]);
+      for (const item of values) {
+        if (
+          !published &&
+          item &&
+          item.datePublished
+        ) {
+          published =
+            normalizeDate(
+              item.datePublished
+            );
+        }
+
+        if (
+          !modified &&
+          item &&
+          item.dateModified
+        ) {
+          modified =
+            normalizeDate(
+              item.dateModified
+            );
+        }
       }
     } catch {
-      const publishedMatch =
-        content.match(
+      const p =
+        body.match(
           /"datePublished"\s*:\s*"([^"]+)"/i
         );
 
-      const modifiedMatch =
-        content.match(
+      const m =
+        body.match(
           /"dateModified"\s*:\s*"([^"]+)"/i
         );
 
-      if (
-        !result.published &&
-        publishedMatch
-      ) {
-        result.published =
+      if (!published && p) {
+        published =
           normalizeDate(
-            publishedMatch[1]
-          ) ||
-          parseHumanDate(
-            publishedMatch[1]
+            p[1]
           );
       }
 
-      if (
-        !result.modified &&
-        modifiedMatch
-      ) {
-        result.modified =
+      if (!modified && m) {
+        modified =
           normalizeDate(
-            modifiedMatch[1]
-          ) ||
-          parseHumanDate(
-            modifiedMatch[1]
+            m[1]
           );
       }
     }
   }
 
-  return result;
+  return {
+    published,
+    modified
+  };
 }
 
-function extractVisibleDate(html) {
-  const patterns = [
-    /\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b/i,
-    /\b\d{1,2}\s+(?:janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre)\s+\d{4}\b/i
-  ];
-
-  for (const pattern of patterns) {
-    const match = html.match(pattern);
-
-    if (match) {
-      const parsed = parseHumanDate(
-        match[0]
-      );
-
-      if (parsed) {
-        return parsed;
-      }
-    }
-  }
-
-  return null;
-}
-
-async function fetchNewswirePageMetadata(url) {
-  try {
-    const response = await fetch(url, {
+async function fetchPage(url) {
+  const response =
+    await fetch(url, {
       headers: {
         "user-agent":
           "Mozilla/5.0 RSGOracle Newswire",
@@ -601,76 +412,32 @@ async function fetchNewswirePageMetadata(url) {
       }
     });
 
-    if (!response.ok) {
-      return {};
-    }
-
-    const html = await response.text();
-
-    const jsonLd = extractJsonLdDates(html);
-
-    const publishedMeta =
-      extractMetaValue(html, [
-        "article:published_time",
-        "datePublished",
-        "publication_date",
-        "published_time"
-      ]);
-
-    const modifiedMeta =
-      extractMetaValue(html, [
-        "article:modified_time",
-        "dateModified",
-        "modified_time",
-        "last-modified"
-      ]);
-
-    const title =
-      extractMetaValue(html, [
-        "og:title",
-        "twitter:title",
-        "title"
-      ]);
-
-    const published =
-      jsonLd.published ||
-      normalizeDate(publishedMeta) ||
-      parseHumanDate(publishedMeta) ||
-      extractVisibleDate(html);
-
-    const modified =
-      jsonLd.modified ||
-      normalizeDate(modifiedMeta) ||
-      parseHumanDate(modifiedMeta);
-
-    return {
-      title: cleanTitle(title),
-      published: published || null,
-      modified: modified || null
-    };
-  } catch (error) {
-    console.log(
-      `[NEWSWIRE] Metadata fetch failed for ${url}: ${error.message}`
+  if (!response.ok) {
+    throw new Error(
+      `HTTP ${response.status}`
     );
-
-    return {};
   }
+
+  const html =
+    await response.text();
+
+  return {
+    html,
+    response
+  };
 }
 
-async function fetchNewswireLastModified(url) {
+async function fetchLastModified(url) {
   try {
-    const response = await fetch(url, {
-      method: "HEAD",
-      redirect: "follow",
-      headers: {
-        "user-agent":
-          "Mozilla/5.0 RSGOracle Newswire"
-      }
-    });
-
-    if (!response.ok) {
-      return null;
-    }
+    const response =
+      await fetch(url, {
+        method: "HEAD",
+        redirect: "follow",
+        headers: {
+          "user-agent":
+            "Mozilla/5.0 RSGOracle Newswire"
+        }
+      });
 
     return (
       response.headers.get(
@@ -682,302 +449,267 @@ async function fetchNewswireLastModified(url) {
   }
 }
 
-async function graphqlRequest(
-  operationName,
-  variables
+function extractArticleLinks(
+  html,
+  limit
 ) {
-  const query =
-    operationName === NEWSWIRE_LIST_HASH
-      ? `
-        query NewswireList($limit: Int!) {
-          newswire {
-            posts(limit: $limit) {
-              id
-              title
-              url
-              slug
-              datePublished
-              publishedAt
-              createdAt
-            }
-          }
-        }
-      `
-      : `
-        query NewswirePost($id: ID, $url: String) {
-          newswirePost(id: $id, url: $url) {
-            id
-            title
-            url
-            slug
-            datePublished
-            publishedAt
-            createdAt
-            dateModified
-            updatedAt
-            modifiedAt
-          }
-        }
-      `;
+  const results = [];
+  const seen = new Set();
 
-  console.log(
-    `[NEWSWIRE] GraphQL request: ${operationName}`
-  );
+  const pattern =
+    /<a\b[^>]*href=["']([^"']*\/newswire\/article\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
 
-  const response = await fetch(
-    GRAPHQL_URL,
-    {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        accept: "application/json",
-        "user-agent":
-          "Mozilla/5.0 RSGOracle Newswire"
-      },
-      body: JSON.stringify({
-        operationName,
-        variables,
-        query
-      })
-    }
-  );
+  let match;
 
-  if (!response.ok) {
-    throw new Error(
-      `GraphQL HTTP ${response.status}`
-    );
-  }
+  while (
+    (match =
+      pattern.exec(html)) &&
+    results.length <
+      limit + 1
+  ) {
+    const url =
+      normalizeUrl(
+        match[1]
+      );
 
-  const json = await response.json();
-
-  if (json.errors) {
-    throw new Error(
-      json.errors
-        .map((error) => error.message)
-        .join("; ")
-    );
-  }
-
-  return json.data;
-}
-
-function extractPosts(data) {
-  if (!data) {
-    return [];
-  }
-
-  const candidates = [
-    data?.newswire?.posts,
-    data?.newswire?.articles,
-    data?.newswireList?.posts,
-    data?.newswireList?.articles,
-    data?.posts,
-    data?.articles
-  ];
-
-  for (const candidate of candidates) {
-    if (Array.isArray(candidate)) {
-      return candidate;
-    }
-  }
-
-  return [];
-}
-
-function extractPostData(data) {
-  if (!data) {
-    return null;
-  }
-
-  const candidates = [
-    data?.newswirePost,
-    data?.newswire?.post,
-    data?.post,
-    data?.article,
-    data?.newswireArticle
-  ];
-
-  for (const candidate of candidates) {
     if (
-      candidate &&
-      typeof candidate === "object"
+      !isArticleUrl(url) ||
+      seen.has(url)
     ) {
-      return candidate;
+      continue;
     }
+
+    seen.add(url);
+
+    const title =
+      decodeHtml(
+        match[2]
+      );
+
+    const start =
+      Math.max(
+        0,
+        match.index - 1200
+      );
+
+    const end =
+      Math.min(
+        html.length,
+        pattern.lastIndex + 1200
+      );
+
+    const context =
+      decodeHtml(
+        html.slice(
+          start,
+          end
+        )
+      );
+
+    const date =
+      findDateInText(
+        context
+      );
+
+    results.push({
+      title:
+        title || null,
+      url,
+      date
+    });
   }
 
-  return null;
+  return results;
 }
 
-async function fetchNewswire(latestArticles) {
+async function fetchNewswire(
+  latestArticles
+) {
   console.log(
     "[NEWSWIRE] Checking Rockstar Newswire..."
   );
 
-  const requested =
-    Math.max(
-      1,
-      Number(latestArticles) || 5
+  const { html } =
+    await fetchPage(
+      NEWSWIRE_URL
     );
 
-  const data = await graphqlRequest(
-    NEWSWIRE_LIST_HASH,
-    {
-      limit: requested + 1
-    }
-  );
-
-  const posts = extractPosts(data);
+  const links =
+    extractArticleLinks(
+      html,
+      latestArticles
+    );
 
   console.log(
-    `[NEWSWIRE] NewswireList returned ${posts.length} posts.`
+    `[NEWSWIRE] Article links detected: ${links.length}`
   );
 
-  const normalized = posts
-    .map(normalizeArticle)
-    .filter(Boolean);
-
-  if (normalized.length > 0) {
-    const first = normalized[0];
-
-    console.log(
-      `[NEWSWIRE] Ignoring first Newswire result as featured/pinned: ${first.title || first.url}`
-    );
+  if (!links.length) {
+    return [];
   }
 
-  const latestPosts = normalized.slice(
-    1,
-    requested + 1
+  /*
+   * Rockstar currently places the featured
+   * GTA VI article first.
+   *
+   * Ignore that first result and inspect
+   * the next 5 real Newswire articles.
+   */
+  const candidates =
+    links.slice(
+      1,
+      latestArticles + 1
+    );
+
+  console.log(
+    `[NEWSWIRE] Ignoring first featured result, checking ${candidates.length} latest articles.`
   );
 
   const articles = [];
 
-  for (const post of latestPosts) {
+  for (const item of candidates) {
     try {
-      const postData =
-        await graphqlRequest(
-          NEWSWIRE_POST_HASH,
-          {
-            id: post.id || null,
-            url: post.url
-          }
+      const [
+        page,
+        lastModified
+      ] = await Promise.all([
+        fetchPage(
+          item.url
+        ),
+        fetchLastModified(
+          item.url
+        )
+      ]);
+
+      const articleHtml =
+        page.html;
+
+      const jsonLd =
+        extractJsonLdDates(
+          articleHtml
         );
 
-      const detailed =
-        extractPostData(postData);
+      const publishedMeta =
+        extractMeta(
+          articleHtml,
+          [
+            "article:published_time",
+            "datePublished",
+            "publication_date",
+            "published_time"
+          ]
+        );
 
-      const merged = normalizeArticle({
-        ...post,
-        ...(detailed || {})
+      const modifiedMeta =
+        extractMeta(
+          articleHtml,
+          [
+            "article:modified_time",
+            "dateModified",
+            "modified_time"
+          ]
+        );
+
+      const titleMeta =
+        extractMeta(
+          articleHtml,
+          [
+            "og:title",
+            "twitter:title"
+          ]
+        );
+
+      const date =
+        jsonLd.published ||
+        normalizeDate(
+          publishedMeta
+        ) ||
+        parseHumanDate(
+          publishedMeta
+        ) ||
+        item.date ||
+        findDateInText(
+          decodeHtml(
+            articleHtml
+          )
+        );
+
+      const updatedAt =
+        jsonLd.modified ||
+        normalizeDate(
+          modifiedMeta
+        ) ||
+        parseHumanDate(
+          modifiedMeta
+        );
+
+      const title =
+        titleMeta ||
+        item.title ||
+        null;
+
+      articles.push({
+        title,
+        url: item.url,
+        date:
+          date || null,
+        updatedAt:
+          updatedAt || null,
+
+        /*
+         * IMPORTANT:
+         * Keep EXACTLY the HTTP
+         * Last-Modified header.
+         *
+         * If Rockstar sends:
+         * Thu, 31 Aug 2045 02:39:53 GMT
+         *
+         * we keep that exact value.
+         */
+        lastModified:
+          lastModified || null
       });
 
-      if (merged) {
-        if (!merged.title) {
-          merged.title = post.title;
-        }
-
-        if (!merged.date) {
-          merged.date = post.date;
-        }
-
-        if (!merged.updatedAt) {
-          merged.updatedAt =
-            post.updatedAt;
-        }
-
-        articles.push(merged);
-      } else {
-        articles.push(post);
-      }
-    } catch (error) {
       console.log(
-        `[NEWSWIRE] NewswirePost failed for ${post.url}: ${error.message}`
+        `[NEWSWIRE] ${title || item.url}`
       );
 
-      articles.push(post);
+      console.log(
+        `[NEWSWIRE] Published: ${date || "unknown"}`
+      );
+
+      console.log(
+        `[NEWSWIRE] Last-Modified header: ${lastModified || "unknown"}`
+      );
+
+      console.log(
+        `[NEWSWIRE] Updated: ${updatedAt || "unknown"}`
+      );
+    } catch (error) {
+      console.log(
+        `[NEWSWIRE] Failed to read article ${item.url}: ${error.message}`
+      );
+
+      articles.push({
+        title:
+          item.title || null,
+        url: item.url,
+        date:
+          item.date || null,
+        updatedAt: null,
+        lastModified: null
+      });
     }
   }
 
-  console.log(
-    `[NEWSWIRE] GraphQL articles detected: ${articles.length}`
-  );
-
-  const enriched = [];
-
-  for (const article of articles) {
-    const [
-      lastModified,
-      pageMetadata
-    ] = await Promise.all([
-      fetchNewswireLastModified(
-        article.url
-      ),
-      fetchNewswirePageMetadata(
-        article.url
-      )
-    ]);
-
-    if (
-      !article.title &&
-      pageMetadata.title
-    ) {
-      article.title =
-        pageMetadata.title;
-    }
-
-    if (
-      !article.date &&
-      pageMetadata.published
-    ) {
-      article.date =
-        pageMetadata.published;
-    }
-
-    if (
-      !article.updatedAt &&
-      pageMetadata.modified
-    ) {
-      article.updatedAt =
-        pageMetadata.modified;
-    }
-
-    /*
-     * IMPORTANT:
-     *
-     * lastModified is ONLY the raw HTTP
-     * Last-Modified header.
-     *
-     * If Rockstar returns:
-     * Thu, 31 Aug 2045 02:39:53 GMT
-     *
-     * we keep exactly that value.
-     *
-     * It is NOT used as publication date.
-     */
-    article.lastModified =
-      lastModified || null;
-
-    enriched.push(article);
-
-    console.log(
-      `[NEWSWIRE] ${article.title || article.url}`
-    );
-    console.log(
-      `[NEWSWIRE] Published: ${article.date || "unknown"}`
-    );
-    console.log(
-      `[NEWSWIRE] Last-Modified header: ${article.lastModified || "unknown"}`
-    );
-    console.log(
-      `[NEWSWIRE] Updated: ${article.updatedAt || "unknown"}`
-    );
-  }
-
-  return enriched;
+  return articles;
 }
 
 function normalizeState(state) {
-  if (!state || typeof state !== "object") {
+  if (
+    !state ||
+    typeof state !== "object"
+  ) {
     return {
       articles: [],
       known_urls: []
@@ -985,135 +717,102 @@ function normalizeState(state) {
   }
 
   return {
-    articles: Array.isArray(state.articles)
-      ? state.articles
-      : [],
-    known_urls: Array.isArray(
-      state.known_urls
-    )
-      ? state.known_urls
-      : []
+    articles:
+      Array.isArray(
+        state.articles
+      )
+        ? state.articles
+        : [],
+
+    known_urls:
+      Array.isArray(
+        state.known_urls
+      )
+        ? state.known_urls
+        : []
   };
 }
 
-function uniqueArticles(articles) {
-  const map = new Map();
+function loadNotifications() {
+  const data =
+    readJson(
+      NOTIFICATIONS_FILE
+    );
 
-  for (const article of articles) {
-    if (!article || !article.url) {
-      continue;
-    }
-
-    map.set(article.url, article);
-  }
-
-  return Array.from(map.values());
+  return Array.isArray(data)
+    ? data
+    : [];
 }
 
-function sortArticles(articles) {
-  return [...articles].sort(
-    (a, b) => {
-      const da = a.date
-        ? new Date(a.date).getTime()
-        : 0;
-
-      const db = b.date
-        ? new Date(b.date).getTime()
-        : 0;
-
-      return db - da;
-    }
-  );
-}
-
-function findNewArticles(
-  currentArticles,
-  previousState
+function findExisting(
+  state,
+  url
 ) {
-  const known = new Set(
-    previousState.known_urls || []
-  );
-
-  for (const article of previousState.articles || []) {
-    if (article?.url) {
-      known.add(article.url);
-    }
-  }
-
-  return currentArticles.filter(
-    (article) =>
-      article &&
-      article.url &&
-      !known.has(article.url)
+  return (
+    state.articles.find(
+      (article) =>
+        article &&
+        article.url === url
+    ) || null
   );
 }
 
-function mergeArticleIntoState(
+function mergeArticle(
   state,
   article
 ) {
-  const existingIndex =
-    state.articles.findIndex(
-      (item) =>
-        item?.url === article.url
+  const existing =
+    findExisting(
+      state,
+      article.url
     );
 
-  if (existingIndex === -1) {
-    state.articles.push(article);
-    return;
+  if (!existing) {
+    state.articles.push({
+      title:
+        article.title ||
+        "Newswire",
+
+      url:
+        article.url,
+
+      date:
+        article.date ||
+        null,
+
+      last_modified:
+        article.lastModified ||
+        null,
+
+      updated_at:
+        article.updatedAt ||
+        null
+    });
+
+    return true;
   }
-
-  const existing =
-    state.articles[existingIndex];
-
-  state.articles[existingIndex] = {
-    ...existing,
-    ...article,
-
-    /*
-     * Never erase recovered values with null.
-     */
-    date:
-      article.date ||
-      existing.date ||
-      null,
-
-    last_modified:
-      article.last_modified ||
-      existing.last_modified ||
-      null,
-
-    updated_at:
-      article.updated_at ||
-      existing.updated_at ||
-      null
-  };
-}
-
-function repairExistingArticle(
-  state,
-  article
-) {
-  const index =
-    state.articles.findIndex(
-      (item) =>
-        item?.url === article.url
-    );
-
-  if (index === -1) {
-    return false;
-  }
-
-  const existing =
-    state.articles[index];
 
   let changed = false;
 
   if (
-    article.date &&
-    existing.date !== article.date
+    article.title &&
+    existing.title !==
+      article.title
   ) {
-    existing.date = article.date;
+    existing.title =
+      article.title;
+
+    changed = true;
+  }
+
+  if (
+    article.date &&
+    existing.date !==
+      article.date
+  ) {
+    existing.date =
+      article.date;
+
     changed = true;
   }
 
@@ -1124,6 +823,7 @@ function repairExistingArticle(
   ) {
     existing.last_modified =
       article.lastModified;
+
     changed = true;
   }
 
@@ -1134,205 +834,196 @@ function repairExistingArticle(
   ) {
     existing.updated_at =
       article.updatedAt;
-    changed = true;
-  }
 
-  if (
-    article.title &&
-    existing.title !== article.title
-  ) {
-    existing.title = article.title;
     changed = true;
   }
 
   return changed;
 }
 
-function createNotification(
-  article,
-  detectedAt
-) {
-  return {
-    type: "newswire_new_post",
-    title: article.title || "Newswire",
-    url: article.url,
-    date: article.date || null,
-    last_modified:
-      article.lastModified || null,
-    updated_at:
-      article.updatedAt || null,
-    detected_at: detectedAt
-  };
-}
-
-function loadNotifications() {
-  const data =
-    readJson(NOTIFICATIONS_FILE);
-
-  return Array.isArray(data)
-    ? data
-    : [];
-}
-
-function saveNotifications(
-  notifications
-) {
-  writeJson(
-    NOTIFICATIONS_FILE,
-    notifications
-  );
-}
-
 async function main() {
   try {
     const config =
-      readJson(CONFIG_FILE) || {};
+      readJson(
+        CONFIG_FILE
+      ) || {};
 
     const latestArticles =
       Number.isInteger(
         config?.newswire?.latest_articles
       ) &&
-      config.newswire.latest_articles > 0
+      config.newswire.latest_articles >
+        0
         ? config.newswire.latest_articles
         : 5;
 
     const previousState =
       normalizeState(
-        readJson(STATE_FILE)
+        readJson(
+          STATE_FILE
+        )
       );
 
-    const articles =
+    const currentArticles =
       await fetchNewswire(
         latestArticles
       );
 
-    console.log(
-      `[NEWSWIRE] Articles detected: ${articles.length}`
-    );
-
-    if (!articles.length) {
+    if (
+      !currentArticles.length
+    ) {
       console.log(
         "[NEWSWIRE] No Newswire articles detected."
       );
+
       return;
     }
 
-    const normalizedCurrent =
-      uniqueArticles(articles);
-
-    const newArticles =
-      findNewArticles(
-        normalizedCurrent,
-        previousState
+    const knownUrls =
+      new Set(
+        previousState.known_urls
       );
 
-    const nextState = {
+    for (
+      const article of
+        previousState.articles
+    ) {
+      if (article?.url) {
+        knownUrls.add(
+          article.url
+        );
+      }
+    }
+
+    const newArticles =
+      currentArticles.filter(
+        (article) =>
+          !knownUrls.has(
+            article.url
+          )
+      );
+
+    const state = {
       articles: [
-        ...(previousState.articles || [])
+        ...previousState.articles
       ],
+
       known_urls: [
-        ...(previousState.known_urls || [])
+        ...previousState.known_urls
       ]
     };
 
-    let stateChanged = false;
+    let stateChanged =
+      false;
 
     /*
-     * Always repair/enrich existing articles.
-     * This is important when an old state contains:
+     * Always enrich existing articles.
+     *
+     * This repairs old state entries such as:
      *
      * date: null
      * updated_at: null
      *
-     * but the current Rockstar page now exposes
-     * those values.
+     * without requiring the article
+     * to be detected as new again.
      */
-    for (const article of normalizedCurrent) {
-      const existingChanged =
-        repairExistingArticle(
-          nextState,
+    for (
+      const article of
+        currentArticles
+    ) {
+      if (
+        mergeArticle(
+          state,
           article
-        );
-
-      if (existingChanged) {
-        stateChanged = true;
+        )
+      ) {
+        stateChanged =
+          true;
       }
     }
 
-    if (newArticles.length > 0) {
-      const detectedAt =
-        new Date().toISOString();
-
+    if (
+      newArticles.length
+    ) {
       const notifications =
         loadNotifications();
 
-      for (const article of newArticles) {
-        const storedArticle = {
-          title:
-            article.title || "Newswire",
-          url: article.url,
-          date: article.date || null,
-          last_modified:
-            article.lastModified || null,
-          updated_at:
-            article.updatedAt || null
-        };
+      const detectedAt =
+        new Date().toISOString();
 
-        mergeArticleIntoState(
-          nextState,
-          storedArticle
-        );
+      for (
+        const article of
+          newArticles
+      ) {
+        notifications.push({
+          type:
+            "newswire_new_post",
+
+          title:
+            article.title ||
+            "Newswire",
+
+          url:
+            article.url,
+
+          date:
+            article.date ||
+            null,
+
+          last_modified:
+            article.lastModified ||
+            null,
+
+          updated_at:
+            article.updatedAt ||
+            null,
+
+          detected_at:
+            detectedAt
+        });
 
         if (
-          !nextState.known_urls.includes(
+          !state.known_urls.includes(
             article.url
           )
         ) {
-          nextState.known_urls.push(
+          state.known_urls.push(
             article.url
           );
         }
-
-        notifications.push(
-          createNotification(
-            article,
-            detectedAt
-          )
-        );
-
-        stateChanged = true;
 
         console.log(
           `[NEWSWIRE] New article detected: ${article.title || article.url}`
         );
       }
 
-      saveNotifications(
+      writeJson(
+        NOTIFICATIONS_FILE,
         notifications
       );
+
+      stateChanged =
+        true;
     }
 
-    /*
-     * Keep only a reasonable history.
-     */
-    nextState.articles =
-      sortArticles(
-        uniqueArticles(
-          nextState.articles
-        )
-      ).slice(0, 25);
+    state.articles =
+      state.articles.slice(
+        -25
+      );
 
-    nextState.known_urls =
+    state.known_urls =
       Array.from(
         new Set(
-          nextState.known_urls
+          state.known_urls
         )
       ).slice(-25);
 
-    if (stateChanged) {
+    if (
+      stateChanged
+    ) {
       writeJson(
         STATE_FILE,
-        nextState
+        state
       );
 
       console.log(
