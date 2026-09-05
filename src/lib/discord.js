@@ -170,10 +170,12 @@ function loadTunablesSummary(
     return {
       eventWeekly:
         tunables.EVENT_WKLY ??
+        tunables._0x6F758B7B ??
         null,
 
       tunableVersion:
         tunables.TUNABLE_VERSION ??
+        tunables._0x1EED3E39 ??
         null
     };
   } catch (error) {
