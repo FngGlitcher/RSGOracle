@@ -611,7 +611,26 @@ async function processBackgroundTarget(
       detectedAt
     );
 
-  if (!previousState) {
+  /*
+   * IMPORTANT:
+   * A new build must generate background_new_build
+   * even when the downloaded file hash is unchanged.
+   */
+  if (buildChanged) {
+    eventNotifications.push({
+      event:
+        'background_new_build',
+      target,
+      metadata: {
+        detected_at:
+          detectedAt,
+        build:
+          latestBuildValue,
+        previous_build:
+          configuredBuildValue
+      }
+    });
+  } else if (!previousState) {
     eventNotifications.push({
       event:
         'background_first_seen',
