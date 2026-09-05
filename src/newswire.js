@@ -9,6 +9,9 @@ const {
 const NEWSWIRE_URL =
   'https://www.rockstargames.com/newswire';
 
+const GRAPHQL_URL =
+  'https://graph.rockstargames.com/';
+
 const STATE_FILE =
   path.join(
     ROOT,
@@ -67,26 +70,6 @@ function writeJson(file, data) {
     ) + '\n',
     'utf8'
   );
-}
-
-function normalizeUrl(url) {
-  if (!url) {
-    return null;
-  }
-
-  try {
-    const parsed =
-      new URL(
-        String(url),
-        NEWSWIRE_URL
-      );
-
-    parsed.hash = '';
-
-    return parsed.toString();
-  } catch {
-    return null;
-  }
 }
 
 function decodeHtml(value) {
@@ -171,6 +154,26 @@ function parseDate(value) {
   ).toISOString();
 }
 
+function normalizeUrl(url) {
+  if (!url) {
+    return null;
+  }
+
+  try {
+    const parsed =
+      new URL(
+        String(url),
+        NEWSWIRE_URL
+      );
+
+    parsed.hash = '';
+
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
 function isNewswireArticleUrl(url) {
   if (!url) {
     return false;
@@ -186,7 +189,7 @@ function isNewswireArticleUrl(url) {
     return (
       parsed.hostname ===
         'www.rockstargames.com' &&
-      /^\/newswire\/article\//i.test(
+      /^\/(?:[a-z]{2}(?:-[A-Z]{2})?\/)?newswire\/article\//i.test(
         parsed.pathname
       )
     );
@@ -195,202 +198,395 @@ function isNewswireArticleUrl(url) {
   }
 }
 
-function extractDateCandidates(source) {
-  const dates = [];
-
-  const html =
-    String(source || '');
-
-  const timePattern =
-    /<time\b[^>]*(?:datetime|date-time)\s*=\s*["']([^"']+)["'][^>]*>/gi;
-
-  let match;
-
-  while (
-    (match =
-      timePattern.exec(html))
-  ) {
-    const date =
-      parseDate(
-        decodeHtml(
-          match[1]
-        )
-      );
-
-    if (date) {
-      dates.push({
-        position:
-          match.index,
-        date
-      });
-    }
+function normalizeArticle(article) {
+  if (!article) {
+    return null;
   }
 
-  const attributePattern =
-    /(?:datePublished|publishedAt|published_at|publicationDate|publishDate)\s*[:=]\s*["']([^"']+)["']/gi;
+  const rawUrl =
+    article.url ||
+    article.urlOfficial ||
+    article.link ||
+    article.href ||
+    article.path ||
+    null;
 
-  while (
-    (match =
-      attributePattern.exec(html))
-  ) {
-    const date =
-      parseDate(
-        decodeHtml(
-          match[1]
-        )
-      );
+  const url =
+    normalizeUrl(
+      rawUrl
+    );
 
-    if (date) {
-      dates.push({
-        position:
-          match.index,
-        date
-      });
-    }
-  }
-
-  const englishDatePattern =
-    /\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b/gi;
-
-  while (
-    (match =
-      englishDatePattern.exec(html))
-  ) {
-    const date =
-      parseDate(
-        match[0]
-      );
-
-    if (date) {
-      dates.push({
-        position:
-          match.index,
-        date
-      });
-    }
-  }
-
-  return dates;
-}
-
-function findNearestDate(
-  dates,
-  position,
-  source
-) {
   if (
-    !dates.length
+    !url ||
+    !isNewswireArticleUrl(
+      url
+    )
   ) {
     return null;
   }
 
-  let nearestBefore =
-    null;
+  const title =
+    cleanTitle(
+      article.title ||
+      article.headline ||
+      article.name ||
+      ''
+    );
 
-  for (
-    const item of dates
-  ) {
-    if (
-      item.position <=
-      position
-    ) {
-      if (
-        !nearestBefore ||
-        item.position >
-          nearestBefore.position
-      ) {
-        nearestBefore =
-          item;
-      }
-    }
-  }
+  const date =
+    parseDate(
+      article.datePublished ||
+      article.publishedAt ||
+      article.published_at ||
+      article.publicationDate ||
+      article.publishDate ||
+      article.date ||
+      article.published ||
+      article.createdAt ||
+      article.created_at ||
+      ''
+    );
 
-  if (nearestBefore) {
-    const distance =
-      position -
-      nearestBefore.position;
+  return {
+    title:
+      title || null,
 
-    if (
-      distance <= 5000
-    ) {
-      return nearestBefore.date;
-    }
-  }
+    url,
 
-  let nearestAfter =
-    null;
-
-  for (
-    const item of dates
-  ) {
-    if (
-      item.position >
-      position
-    ) {
-      if (
-        !nearestAfter ||
-        item.position <
-          nearestAfter.position
-      ) {
-        nearestAfter =
-          item;
-      }
-    }
-  }
-
-  if (nearestAfter) {
-    const distance =
-      nearestAfter.position -
-      position;
-
-    if (
-      distance <= 5000
-    ) {
-      return nearestAfter.date;
-    }
-  }
-
-  return null;
+    date
+  };
 }
 
-function extractArticles(html) {
+function collectArticles(
+  value,
+  output
+) {
+  if (!value) {
+    return;
+  }
+
+  if (
+    Array.isArray(value)
+  ) {
+    for (
+      const item of value
+    ) {
+      collectArticles(
+        item,
+        output
+      );
+    }
+
+    return;
+  }
+
+  if (
+    typeof value !==
+    'object'
+  ) {
+    return;
+  }
+
+  const normalized =
+    normalizeArticle(
+      value
+    );
+
+  if (normalized) {
+    output.push(
+      normalized
+    );
+  }
+
+  for (
+    const child of Object.values(
+      value
+    )
+  ) {
+    if (
+      child &&
+      typeof child ===
+        'object'
+    ) {
+      collectArticles(
+        child,
+        output
+      );
+    }
+  }
+}
+
+async function fetchGraphQLQuery(
+  query,
+  variables,
+  operationName
+) {
+  const url =
+    new URL(
+      GRAPHQL_URL
+    );
+
+  url.searchParams.set(
+    'origin',
+    'https://www.rockstargames.com'
+  );
+
+  url.searchParams.set(
+    'operationName',
+    operationName
+  );
+
+  url.searchParams.set(
+    'variables',
+    JSON.stringify(
+      variables
+    )
+  );
+
+  url.searchParams.set(
+    'query',
+    query
+  );
+
+  console.log(
+    `[NEWSWIRE] GraphQL request: ${operationName}`
+  );
+
+  const response =
+    await fetch(
+      url,
+      {
+        headers: {
+          'User-Agent':
+            'GTAV-Tunables-Monitor/1.0',
+
+          Accept:
+            'application/json',
+
+          Referer:
+            NEWSWIRE_URL
+        }
+      }
+    );
+
+  if (
+    !response.ok
+  ) {
+    throw new Error(
+      `GraphQL HTTP ${response.status}`
+    );
+  }
+
+  const text =
+    await response.text();
+
+  let json;
+
+  try {
+    json =
+      JSON.parse(
+        text
+      );
+  } catch {
+    throw new Error(
+      'GraphQL returned invalid JSON'
+    );
+  }
+
+  if (
+    Array.isArray(
+      json.errors
+    ) &&
+    json.errors.length
+  ) {
+    throw new Error(
+      json.errors
+        .map(
+          error =>
+            error?.message
+        )
+        .filter(Boolean)
+        .join(
+          ' | '
+        ) ||
+        'GraphQL query failed'
+    );
+  }
+
+  return json;
+}
+
+async function fetchNewswireGraphQL() {
+  const candidates = [
+    {
+      operationName:
+        'NewswireList',
+
+      query: `
+        query NewswireList(
+          $locale: String!,
+          $limit: Int!
+        ) {
+          newswire(
+            locale: $locale,
+            limit: $limit
+          ) {
+            results {
+              id
+              title
+              titleSlug
+              url
+              datePublished
+              publishedAt
+              published_at
+              publicationDate
+              publishDate
+            }
+          }
+        }
+      `
+    },
+
+    {
+      operationName:
+        'NewswireList',
+
+      query: `
+        query NewswireList(
+          $locale: String!,
+          $limit: Int!
+        ) {
+          articles(
+            locale: $locale,
+            limit: $limit
+          ) {
+            results {
+              id
+              title
+              titleSlug
+              url
+              datePublished
+              publishedAt
+              published_at
+              publicationDate
+              publishDate
+            }
+          }
+        }
+      `
+    },
+
+    {
+      operationName:
+        'NewswireList',
+
+      query: `
+        query NewswireList(
+          $locale: String!,
+          $limit: Int!
+        ) {
+          news(
+            locale: $locale,
+            limit: $limit
+          ) {
+            results {
+              id
+              title
+              titleSlug
+              url
+              datePublished
+              publishedAt
+              published_at
+              publicationDate
+              publishDate
+            }
+          }
+        }
+      `
+    }
+  ];
+
+  for (
+    const candidate of candidates
+  ) {
+    try {
+      const json =
+        await fetchGraphQLQuery(
+          candidate.query,
+          {
+            locale:
+              'en_us',
+
+            limit:
+              100
+          },
+          candidate.operationName
+        );
+
+      const articles =
+        [];
+
+      collectArticles(
+        json?.data,
+        articles
+      );
+
+      if (
+        articles.length
+      ) {
+        console.log(
+          `[NEWSWIRE] GraphQL articles detected: ${articles.length}`
+        );
+
+        return articles;
+      }
+
+      console.log(
+        '[NEWSWIRE] GraphQL query returned no usable articles.'
+      );
+    } catch (error) {
+      console.log(
+        `[NEWSWIRE] GraphQL candidate failed: ${error.message}`
+      );
+    }
+  }
+
+  return [];
+}
+
+function extractHtmlArticles(
+  html
+) {
   const articles = [];
   const seen = new Set();
 
   const source =
     String(html || '');
 
-  const dates =
-    extractDateCandidates(
-      source
-    );
-
-  const articlePattern =
+  const pattern =
     /<a\b[^>]*href\s*=\s*["']([^"']*\/newswire\/article\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
 
   let match;
 
   while (
     (match =
-      articlePattern.exec(
+      pattern.exec(
         source
       ))
   ) {
-    const rawUrl =
-      decodeHtml(
-        match[1]
-      );
-
     const url =
       normalizeUrl(
-        rawUrl
+        decodeHtml(
+          match[1]
+        )
       );
 
     if (
       !url ||
       !isNewswireArticleUrl(
         url
-      )
+      ) ||
+      seen.has(url)
     ) {
       continue;
     }
@@ -407,288 +603,52 @@ function extractArticles(html) {
       continue;
     }
 
-    if (
-      seen.has(url)
-    ) {
-      continue;
-    }
-
-    seen.add(url);
-
-    const date =
-      findNearestDate(
-        dates,
-        match.index,
-        source
-      );
-
-    articles.push({
-      title,
-      url,
-      date
-    });
-  }
-
-  return articles;
-}
-
-function extractJsonScripts(html) {
-  const scripts = [];
-
-  const source =
-    String(html || '');
-
-  const pattern =
-    /<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
-
-  let match;
-
-  while (
-    (match =
-      pattern.exec(
-        source
-      ))
-  ) {
-    scripts.push(
-      match[1]
-    );
-  }
-
-  return scripts;
-}
-
-function collectJsonArticles(
-  value,
-  articles
-) {
-  if (!value) {
-    return;
-  }
-
-  if (
-    Array.isArray(value)
-  ) {
-    for (
-      const item of value
-    ) {
-      collectJsonArticles(
-        item,
-        articles
-      );
-    }
-
-    return;
-  }
-
-  if (
-    typeof value !==
-    'object'
-  ) {
-    return;
-  }
-
-  const url =
-    normalizeUrl(
-      value.url ||
-      value.mainEntityOfPage?.['@id'] ||
-      value.mainEntityOfPage
-    );
-
-  if (
-    url &&
-    isNewswireArticleUrl(
+    seen.add(
       url
-    )
-  ) {
-    const title =
-      cleanTitle(
-        value.headline ||
-        value.name ||
-        ''
-      );
-
-    const date =
-      parseDate(
-        value.datePublished ||
-        value.publishedAt ||
-        value.date ||
-        ''
-      );
-
-    articles.push({
-      title,
-      url,
-      date
-    });
-  }
-
-  for (
-    const child of Object.values(
-      value
-    )
-  ) {
-    if (
-      child &&
-      typeof child ===
-        'object'
-    ) {
-      collectJsonArticles(
-        child,
-        articles
-      );
-    }
-  }
-}
-
-function extractArticlesFromJson(
-  html
-) {
-  const articles = [];
-
-  const scripts =
-    extractJsonScripts(
-      html
     );
 
-  for (
-    const script of scripts
-  ) {
-    try {
-      const parsed =
-        JSON.parse(
-          script.trim()
-        );
+    const position =
+      match.index;
 
-      collectJsonArticles(
-        parsed,
-        articles
-      );
-    } catch {
-      continue;
-    }
-  }
-
-  return articles;
-}
-
-function extractArticlesFromEmbeddedData(
-  html
-) {
-  const articles = [];
-  const seen = new Set();
-
-  const source =
-    String(html || '');
-
-  const urlPattern =
-    /https?:\/\/www\.rockstargames\.com\/newswire\/article\/[a-zA-Z0-9]+\/[^"'\\\s<]+/gi;
-
-  const urls =
-    source.match(
-      urlPattern
-    ) || [];
-
-  for (
-    const rawUrl of urls
-  ) {
-    const url =
-      normalizeUrl(
-        rawUrl
-      );
-
-    if (
-      !url ||
-      !isNewswireArticleUrl(
-        url
-      ) ||
-      seen.has(url)
-    ) {
-      continue;
-    }
-
-    seen.add(url);
-
-    const index =
-      source.indexOf(
-        rawUrl
-      );
-
-    const before =
+    const context =
       source.slice(
         Math.max(
           0,
-          index - 5000
+          position - 3000
         ),
-        index
-      );
-
-    const after =
-      source.slice(
-        index,
         Math.min(
           source.length,
-          index + 3000
+          position + 5000
         )
       );
 
-    const context =
-      `${before}\n${after}`;
-
-    const titleMatches =
+    const dates =
       [
         ...context.matchAll(
-          /"(?:headline|title|name)"\s*:\s*"([^"]{3,300})"/gi
-        )
-      ];
-
-    let title =
-      null;
-
-    if (
-      titleMatches.length
-    ) {
-      title =
-        cleanTitle(
-          titleMatches[
-            titleMatches.length - 1
-          ][1]
-        );
-    }
-
-    const dateMatches =
-      [
-        ...context.matchAll(
-          /"(?:datePublished|publishedAt|published_at|publicationDate|publishDate|date)"\s*:\s*"([^"]+)"/gi
+          /\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b/gi
         )
       ];
 
     let date =
       null;
 
-    if (
-      dateMatches.length
+    for (
+      const dateMatch of dates
     ) {
-      for (
-        let i =
-          dateMatches.length - 1;
-        i >= 0;
-        i--
-      ) {
-        date =
-          parseDate(
-            dateMatches[i][1]
-          );
+      const parsed =
+        parseDate(
+          dateMatch[0]
+        );
 
-        if (date) {
-          break;
-        }
+      if (parsed) {
+        date =
+          parsed;
+        break;
       }
     }
 
     articles.push({
-      title:
-        title ||
-        null,
+      title,
       url,
       date
     });
@@ -697,131 +657,127 @@ function extractArticlesFromEmbeddedData(
   return articles;
 }
 
-function mergeArticles(...lists) {
-  const map =
-    new Map();
+async function fetchNewswire() {
+  let graphQLArticles =
+    [];
 
-  for (
-    const list of lists
-  ) {
-    for (
-      const article of list
-    ) {
-      if (
-        !article ||
-        !article.url
-      ) {
-        continue;
-      }
-
-      const url =
-        normalizeUrl(
-          article.url
-        );
-
-      if (
-        !url ||
-        !isNewswireArticleUrl(
-          url
-        )
-      ) {
-        continue;
-      }
-
-      const existing =
-        map.get(
-          url
-        );
-
-      if (!existing) {
-        map.set(
-          url,
-          {
-            title:
-              article.title ||
-              null,
-            url,
-            date:
-              article.date ||
-              null
-          }
-        );
-
-        continue;
-      }
-
-      if (
-        (!existing.title ||
-          existing.title.length < 3) &&
-        article.title
-      ) {
-        existing.title =
-          article.title;
-      }
-
-      if (
-        !existing.date &&
-        article.date
-      ) {
-        existing.date =
-          article.date;
-      }
-    }
-  }
-
-  return [
-    ...map.values()
-  ];
-}
-
-function getSlugTitle(url) {
   try {
-    const parsed =
-      new URL(
-        url
-      );
-
-    const slug =
-      parsed.pathname
-        .split('/')
-        .filter(Boolean)
-        .pop();
-
-    if (!slug) {
-      return 'Unknown article';
-    }
-
-    return slug
-      .replace(
-        /-/g,
-        ' '
-      )
-      .replace(
-        /\s+/g,
-        ' '
-      )
-      .trim();
-  } catch {
-    return 'Unknown article';
+    graphQLArticles =
+      await fetchNewswireGraphQL();
+  } catch (error) {
+    console.log(
+      `[NEWSWIRE] GraphQL failed: ${error.message}`
+    );
   }
+
+  if (
+    graphQLArticles.length
+  ) {
+    return graphQLArticles;
+  }
+
+  console.log(
+    '[NEWSWIRE] Falling back to Newswire HTML.'
+  );
+
+  const response =
+    await fetch(
+      NEWSWIRE_URL,
+      {
+        headers: {
+          'User-Agent':
+            'GTAV-Tunables-Monitor/1.0',
+
+          Accept:
+            'text/html,application/xhtml+xml'
+        }
+      }
+    );
+
+  if (
+    !response.ok
+  ) {
+    throw new Error(
+      `Newswire HTTP ${response.status}`
+    );
+  }
+
+  const html =
+    await response.text();
+
+  return extractHtmlArticles(
+    html
+  );
 }
 
 function selectLatestArticle(
   articles
 ) {
-  const valid =
-    articles.filter(
-      article =>
-        article &&
-        article.url &&
-        article.date
-    );
+  const normalized =
+    articles
+      .map(
+        normalizeArticle
+      )
+      .filter(Boolean);
 
-  if (!valid.length) {
+  if (
+    !normalized.length
+  ) {
     return null;
   }
 
-  valid.sort(
+  const unique =
+    new Map();
+
+  for (
+    const article of normalized
+  ) {
+    const existing =
+      unique.get(
+        article.url
+      );
+
+    if (!existing) {
+      unique.set(
+        article.url,
+        article
+      );
+
+      continue;
+    }
+
+    if (
+      !existing.title &&
+      article.title
+    ) {
+      existing.title =
+        article.title;
+    }
+
+    if (
+      !existing.date &&
+      article.date
+    ) {
+      existing.date =
+        article.date;
+    }
+  }
+
+  const dated =
+    [
+      ...unique.values()
+    ].filter(
+      article =>
+        article.date
+    );
+
+  if (
+    !dated.length
+  ) {
+    return null;
+  }
+
+  dated.sort(
     (a, b) =>
       Date.parse(
         b.date
@@ -831,95 +787,39 @@ function selectLatestArticle(
       )
   );
 
-  const latest =
-    valid[0];
-
-  if (
-    !latest.title ||
-    latest.title.length < 3
-  ) {
-    latest.title =
-      getSlugTitle(
-        latest.url
-      );
-  }
-
-  return latest;
-}
-
-async function fetchNewswire() {
-  const response =
-    await fetch(
-      NEWSWIRE_URL,
-      {
-        headers: {
-          'User-Agent':
-            'gtav-tunables-monitor/1.0',
-          'Accept':
-            'text/html,application/xhtml+xml'
-        }
-      }
-    );
-
-  if (!response.ok) {
-    throw new Error(
-      `Newswire HTTP ${response.status}`
-    );
-  }
-
-  return response.text();
+  return dated[0];
 }
 
 function addNotification(
   article,
   detectedAt
 ) {
-  const events =
+  const notifications =
     readJson(
       NOTIFICATIONS_FILE,
       []
     );
 
-  if (
-    !Array.isArray(
-      events
-    )
-  ) {
-    return;
-  }
-
-  const alreadyPending =
-    events.some(
-      event =>
-        event &&
-        event.event ===
-          'newswire_new_article' &&
-        event.url ===
-          article.url
-    );
-
-  if (
-    alreadyPending
-  ) {
-    return;
-  }
-
-  events.push({
+  notifications.push({
     event:
       'newswire_new_article',
+
     title:
       article.title,
+
     url:
       article.url,
+
     date:
       article.date,
+
     detected_at:
       detectedAt
   });
 
   writeJson(
     NOTIFICATIONS_FILE,
-    events
+    notifications
   );
 }
 
@@ -931,43 +831,31 @@ async function main() {
     config.features?.newswire !== true
   ) {
     console.log(
-      '[NEWSWIRE] Disabled in config.'
+      '[NEWSWIRE] Feature disabled.'
     );
 
     return;
   }
 
-  const detectedAt =
-    new Date().toISOString();
-
   console.log(
     '[NEWSWIRE] Checking Rockstar Newswire...'
   );
 
-  const html =
-    await fetchNewswire();
+  const detectedAt =
+    new Date().toISOString();
 
-  const htmlArticles =
-    extractArticles(
-      html
+  let articles;
+
+  try {
+    articles =
+      await fetchNewswire();
+  } catch (error) {
+    console.error(
+      `[NEWSWIRE] Request failed: ${error.message}`
     );
 
-  const jsonArticles =
-    extractArticlesFromJson(
-      html
-    );
-
-  const embeddedArticles =
-    extractArticlesFromEmbeddedData(
-      html
-    );
-
-  const articles =
-    mergeArticles(
-      htmlArticles,
-      jsonArticles,
-      embeddedArticles
-    );
+    return;
+  }
 
   console.log(
     `[NEWSWIRE] Articles detected: ${articles.length}`
@@ -979,9 +867,11 @@ async function main() {
     );
 
   if (!latest) {
-    throw new Error(
-      'No dated Newswire article could be detected.'
+    console.log(
+      '[NEWSWIRE] No dated Newswire article could be detected.'
     );
+
+    return;
   }
 
   console.log(
@@ -1003,42 +893,55 @@ async function main() {
     );
 
   if (
-    !state ||
-    !state.last_article
+    !state
   ) {
     writeJson(
       STATE_FILE,
       {
-        last_article:
+        url:
           latest.url,
-        last_title:
+
+        title:
           latest.title,
-        last_date:
+
+        date:
           latest.date,
-        last_checked:
+
+        detected_at:
           detectedAt
       }
     );
 
     console.log(
-      '[NEWSWIRE] First run: article saved without notification.'
+      '[NEWSWIRE] Initial state saved. No notification sent.'
     );
 
     return;
   }
 
   if (
-    state.last_article ===
+    state.url ===
     latest.url
   ) {
-    writeJson(
-      STATE_FILE,
-      {
-        ...state,
-        last_checked:
-          detectedAt
-      }
-    );
+    if (
+      state.date !==
+      latest.date ||
+      state.title !==
+      latest.title
+    ) {
+      writeJson(
+        STATE_FILE,
+        {
+          ...state,
+
+          title:
+            latest.title,
+
+          date:
+            latest.date
+        }
+      );
+    }
 
     console.log(
       '[NEWSWIRE] No new article.'
@@ -1055,34 +958,29 @@ async function main() {
   writeJson(
     STATE_FILE,
     {
-      last_article:
+      url:
         latest.url,
-      last_title:
+
+      title:
         latest.title,
-      last_date:
+
+      date:
         latest.date,
-      previous_article:
-        state.last_article,
-      previous_title:
-        state.last_title ||
-        null,
-      previous_date:
-        state.last_date ||
-        null,
-      last_checked:
+
+      detected_at:
         detectedAt
     }
   );
 
   console.log(
-    `[NEWSWIRE] New article detected: ${latest.title}`
+    '[NEWSWIRE] New article detected and notification queued.'
   );
 }
 
 main().catch(
   error => {
     console.error(
-      `[NEWSWIRE] ${error.message}`
+      `[NEWSWIRE] Fatal error: ${error.message}`
     );
 
     process.exit(1);
