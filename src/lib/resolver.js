@@ -129,16 +129,18 @@ function normalizeHash(hash) {
     return hash | 0;
   }
 
-  const value =
-    String(hash)
-      .trim()
-      .replace(/^_?0x/i, '');
+  let value = String(hash).trim();
 
   if (!value) {
     return null;
   }
 
-  if (/^[0-9a-f]+$/i.test(value)) {
+  const isHex =
+    /^_?0x[0-9a-f]+$/i.test(value);
+
+  if (isHex) {
+    value = value.replace(/^_?0x/i, '');
+
     const unsigned =
       parseInt(value, 16) >>> 0;
 
@@ -146,12 +148,9 @@ function normalizeHash(hash) {
   }
 
   if (/^-?\d+$/.test(value)) {
-    const number =
-      Number(value);
+    const number = Number(value);
 
-    if (
-      Number.isSafeInteger(number)
-    ) {
+    if (Number.isSafeInteger(number)) {
       return number | 0;
     }
   }
@@ -159,12 +158,12 @@ function normalizeHash(hash) {
   return null;
 }
 
-function addHashAliases(map, hash, value) {
+function hashAliases(hash) {
   const normalized =
     normalizeHash(hash);
 
   if (normalized === null) {
-    return;
+    return [];
   }
 
   const unsigned =
@@ -173,14 +172,28 @@ function addHashAliases(map, hash, value) {
   const signed =
     normalized | 0;
 
-  const aliases = [
-    String(signed),
-    String(unsigned),
+  const hex =
     `0x${unsigned
       .toString(16)
       .toUpperCase()
-      .padStart(8, '0')}`
+      .padStart(8, '0')}`;
+
+  const shortHex =
+    `0x${unsigned
+      .toString(16)
+      .toUpperCase()}`;
+
+  return [
+    String(signed),
+    String(unsigned),
+    hex,
+    shortHex
   ];
+}
+
+function addHashAliases(map, hash, value) {
+  const aliases =
+    hashAliases(hash);
 
   for (const alias of aliases) {
     if (!map.has(alias)) {
@@ -190,49 +203,84 @@ function addHashAliases(map, hash, value) {
 }
 
 async function buildDictionary(config) {
-  const resolverConfig = config.resolver || {};
+  const resolverConfig =
+    config.resolver || {};
 
   const sources = {
-    names: resolverConfig.tunable_names_url,
-    gta: resolverConfig.gta_dictionary_url,
-    labels: resolverConfig.gta_labels_url,
-    jobs: resolverConfig.jobs_dictionary_url
+    names:
+      resolverConfig.tunable_names_url,
+    gta:
+      resolverConfig.gta_dictionary_url,
+    labels:
+      resolverConfig.gta_labels_url,
+    jobs:
+      resolverConfig.jobs_dictionary_url
   };
 
-  console.log('[RESOLVER] Dictionary sources:', sources);
+  console.log(
+    '[RESOLVER] Dictionary sources:',
+    sources
+  );
 
-  const downloads = await Promise.all([
-    downloadDictionary('names', sources.names),
-    downloadDictionary('gta', sources.gta),
-    downloadDictionary('labels', sources.labels),
-    downloadDictionary('jobs', sources.jobs)
-  ]);
+  const downloads =
+    await Promise.all([
+      downloadDictionary(
+        'names',
+        sources.names
+      ),
+      downloadDictionary(
+        'gta',
+        sources.gta
+      ),
+      downloadDictionary(
+        'labels',
+        sources.labels
+      ),
+      downloadDictionary(
+        'jobs',
+        sources.jobs
+      )
+    ]);
 
   const raw = {};
 
   for (const item of downloads) {
-    raw[item.name] = item.value;
+    raw[item.name] =
+      item.value;
   }
 
-  console.log('[RESOLVER] Building contexts...');
+  console.log(
+    '[RESOLVER] Building contexts...'
+  );
 
   const tunables =
-    parseTunableNames(raw.names);
+    parseTunableNames(
+      raw.names
+    );
 
   const gta =
-    parseGtaDictionary(raw.gta);
+    parseGtaDictionary(
+      raw.gta
+    );
 
   const labels =
-    parseLabels(raw.labels);
+    parseLabels(
+      raw.labels
+    );
 
   const jobs =
-    parseJobs(raw.jobs);
+    parseJobs(
+      raw.jobs
+    );
 
   const other = {
     ...gta
   };
 
-  for (const [name, value] of Object.entries(labels)) {
+  for (
+    const [name, value]
+    of Object.entries(labels)
+  ) {
     other[name] =
       joaat(value).signed;
   }
@@ -254,11 +302,22 @@ async function buildDictionary(config) {
 }
 
 function buildIndexes(dictionary) {
-  console.log('[RESOLVER] Building resolver indexes...');
+  console.log(
+    '[RESOLVER] Building resolver indexes...'
+  );
 
-  const tunableByContext = new Map();
+  const tunableByContext =
+    new Map();
 
-  for (const [name, hash] of Object.entries(dictionary.tunables)) {
+  const tunableByHash =
+    new Map();
+
+  for (
+    const [name, hash]
+    of Object.entries(
+      dictionary.tunables
+    )
+  ) {
     const upperName =
       String(name).toUpperCase();
 
@@ -286,8 +345,21 @@ function buildIndexes(dictionary) {
 
     contexts.add('GLOBAL');
 
-    for (const context of contexts) {
-      if (!tunableByContext.has(context)) {
+    addHashAliases(
+      tunableByHash,
+      hash,
+      upperName
+    );
+
+    for (
+      const context
+      of contexts
+    ) {
+      if (
+        !tunableByContext.has(
+          context
+        )
+      ) {
         tunableByContext.set(
           context,
           new Map()
@@ -295,16 +367,24 @@ function buildIndexes(dictionary) {
       }
 
       addHashAliases(
-        tunableByContext.get(context),
+        tunableByContext.get(
+          context
+        ),
         hash,
         upperName
       );
     }
   }
 
-  const otherByValue = new Map();
+  const otherByValue =
+    new Map();
 
-  for (const [key, hash] of Object.entries(dictionary.other)) {
+  for (
+    const [key, hash]
+    of Object.entries(
+      dictionary.other
+    )
+  ) {
     addHashAliases(
       otherByValue,
       hash,
@@ -315,11 +395,12 @@ function buildIndexes(dictionary) {
   console.log(
     `[RESOLVER] Resolver indexes ready. ` +
     `Contexts: ${tunableByContext.size}, ` +
-    `Reverse hash index: ${otherByValue.size}`
+    `Reverse hash index: ${tunableByHash.size}`
   );
 
   return {
     tunableByContext,
+    tunableByHash,
     otherByValue
   };
 }
@@ -331,56 +412,60 @@ function makeResolver(
 ) {
   const {
     tunableByContext,
+    tunableByHash,
     otherByValue
   } = indexes;
 
-  const cache = new Map();
+  const cache =
+    new Map();
 
   function resolveValue(value) {
-    if (typeof value !== 'number') {
+    if (
+      typeof value !== 'number'
+    ) {
       return value;
     }
 
-    return (
-      otherByValue.get(
-        String(value)
-      ) ??
-      value
-    );
+    const aliases =
+      hashAliases(value);
+
+    for (
+      const alias
+      of aliases
+    ) {
+      const name =
+        otherByValue.get(alias);
+
+      if (name) {
+        return name;
+      }
+    }
+
+    return value;
   }
 
-  function lookup(hash, context) {
-    const normalized =
-      normalizeHash(hash);
+  function lookup(
+    hash,
+    context
+  ) {
+    const aliases =
+      hashAliases(hash);
 
-    if (normalized === null) {
+    if (!aliases.length) {
       return null;
     }
 
-    const unsigned =
-      normalized >>> 0;
-
-    const signed =
-      normalized | 0;
-
-    const hex =
-      `0x${unsigned
-        .toString(16)
-        .toUpperCase()
-        .padStart(8, '0')}`;
-
-    const aliases = [
-      String(signed),
-      String(unsigned),
-      hex
-    ];
-
     if (context) {
       const contextMap =
-        tunableByContext.get(context);
+        tunableByContext.get(
+          context
+        );
 
       if (contextMap) {
-        for (const alias of aliases) {
+        for (
+          const alias
+          of aliases
+        ) {
           const name =
             contextMap.get(alias);
 
@@ -392,20 +477,21 @@ function makeResolver(
     }
 
     for (
-      const contextMap
-      of tunableByContext.values()
+      const alias
+      of aliases
     ) {
-      for (const alias of aliases) {
-        const name =
-          contextMap.get(alias);
+      const name =
+        tunableByHash.get(alias);
 
-        if (name) {
-          return name;
-        }
+      if (name) {
+        return name;
       }
     }
 
-    for (const alias of aliases) {
+    for (
+      const alias
+      of aliases
+    ) {
       const otherName =
         otherByValue.get(alias);
 
@@ -416,9 +502,14 @@ function makeResolver(
 
     if (
       platform &&
-      platform.toLowerCase().includes('pc')
+      platform
+        .toLowerCase()
+        .includes('pc')
     ) {
-      for (const alias of aliases) {
+      for (
+        const alias
+        of aliases
+      ) {
         const jobsName =
           dictionary.jobs[alias];
 
@@ -442,17 +533,20 @@ function makeResolver(
       return value;
     }
 
-    if (typeof value === 'number') {
+    if (
+      typeof value === 'number'
+    ) {
       return resolveValue(value);
     }
 
     if (Array.isArray(value)) {
-      return value.map(item =>
-        resolveObject(
-          item,
-          context,
-          depth + 1
-        )
+      return value.map(
+        item =>
+          resolveObject(
+            item,
+            context,
+            depth + 1
+          )
       );
     }
 
@@ -480,8 +574,12 @@ function makeResolver(
           key.toUpperCase();
 
         if (
-          upperKey.includes('CONTEXT') ||
-          upperKey.includes('TUNABLE')
+          upperKey.includes(
+            'CONTEXT'
+          ) ||
+          upperKey.includes(
+            'TUNABLE'
+          )
         ) {
           nextContext =
             item.toUpperCase();
@@ -515,29 +613,31 @@ function makeResolver(
       `[RESOLVER] Starting value resolution: ${total} entries`
     );
 
-    let previousContext = null;
+    let previousContext =
+      null;
 
-    for (const [key, value] of entries) {
+    for (
+      const [key, value]
+      of entries
+    ) {
+      const rawKey =
+        String(key).trim();
+
       const upperKey =
-        String(key).toUpperCase();
+        rawKey.toUpperCase();
 
-      let resolvedKey = null;
+      let resolvedKey =
+        null;
 
-      /*
-       * Normalized tunable keys look like:
-       *
-       *   _0x12345678
-       *
-       * They are already hashes.
-       */
-      if (
-        /^_?0x[0-9a-f]+$/i.test(
-          upperKey
-        )
-      ) {
+      const isHexHash =
+        /^_?0x[0-9A-F]+$/i.test(
+          rawKey
+        );
+
+      if (isHexHash) {
         resolvedKey =
           lookup(
-            upperKey,
+            rawKey,
             previousContext
           );
       } else {
@@ -547,21 +647,26 @@ function makeResolver(
         if (parts.length >= 2) {
           previousContext =
             `${parts[0]}_${parts[1]}`;
-        } else if (parts.length === 1) {
+        } else if (
+          parts.length === 1
+        ) {
           previousContext =
             parts[0];
         }
 
+        const calculated =
+          joaat(upperKey);
+
         resolvedKey =
           lookup(
-            joaat(upperKey).signed,
+            calculated.signed,
             previousContext
           );
 
         if (!resolvedKey) {
           resolvedKey =
             lookup(
-              joaat(upperKey).unsigned,
+              calculated.unsigned,
               previousContext
             );
         }
@@ -570,13 +675,13 @@ function makeResolver(
       const cacheKey =
         `${previousContext || ''}:${upperKey}`;
 
-      if (cache.has(cacheKey)) {
+      if (
+        cache.has(cacheKey)
+      ) {
         const cached =
           cache.get(cacheKey);
 
-        result[
-          cached.key
-        ] =
+        result[cached.key] =
           resolveObject(
             value,
             previousContext
@@ -655,7 +760,8 @@ async function getResolver(
     dictionaryPromise =
       buildDictionary(config)
         .catch(error => {
-          dictionaryPromise = null;
+          dictionaryPromise =
+            null;
           throw error;
         });
   }
@@ -668,7 +774,8 @@ async function getResolver(
       Promise.resolve(
         buildIndexes(dictionary)
       ).catch(error => {
-        indexesPromise = null;
+        indexesPromise =
+          null;
         throw error;
       });
   }
