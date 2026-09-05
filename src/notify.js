@@ -72,13 +72,21 @@ async function main() {
   }
 
   for (const event of events) {
+    /*
+     * Notifications created by different modules may use
+     * either "event" or "type".
+     */
+    const eventType =
+      event?.event ||
+      event?.type;
+
     let content;
 
     /*
      * Tunables updated
      */
     if (
-      event.event ===
+      eventType ===
       'updated'
     ) {
       content =
@@ -116,7 +124,7 @@ async function main() {
      * Tunables first seen
      */
     else if (
-      event.event ===
+      eventType ===
       'first_seen'
     ) {
       content =
@@ -147,7 +155,7 @@ async function main() {
      * Tunables recovery
      */
     else if (
-      event.event ===
+      eventType ===
       'recovery_wait'
     ) {
       content =
@@ -170,7 +178,7 @@ async function main() {
      * Background Script new build
      */
     else if (
-      event.event ===
+      eventType ===
       'background_new_build'
     ) {
       content =
@@ -193,7 +201,7 @@ async function main() {
      * Background Script first seen
      */
     else if (
-      event.event ===
+      eventType ===
       'background_first_seen'
     ) {
       content =
@@ -227,7 +235,7 @@ async function main() {
      * Background Script updated
      */
     else if (
-      event.event ===
+      eventType ===
       'background_updated'
     ) {
       content =
@@ -263,9 +271,14 @@ async function main() {
 
     /*
      * Rockstar Newswire new article
+     *
+     * Newswire currently writes:
+     * type: "newswire_new_post"
      */
     else if (
-      event.event ===
+      eventType ===
+      'newswire_new_post' ||
+      eventType ===
       'newswire_new_article'
     ) {
       content =
@@ -279,6 +292,12 @@ async function main() {
           date:
             event.date,
 
+          lastModified:
+            event.last_modified,
+
+          updatedAt:
+            event.updated_at,
+
           detectedAt:
             event.detected_at
         });
@@ -289,7 +308,7 @@ async function main() {
      */
     else {
       console.log(
-        `Unknown notification event skipped: ${event.event}`
+        `Unknown notification event skipped: ${eventType}`
       );
 
       continue;
