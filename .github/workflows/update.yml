@@ -44,6 +44,9 @@ jobs:
           TUNABLES_AES_KEY: ${{ secrets.TUNABLES_AES_KEY }}
         run: node src/index.js
 
+      - name: Check Rockstar Newswire
+        run: node src/newswire.js
+
       - name: Commit changes
         if: success()
         run: |
