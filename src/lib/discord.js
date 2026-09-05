@@ -690,7 +690,6 @@ function formatNewswireArticle({
     `Posted at **${formatNewswirePostedTime(date)}**`,
     `Last modified **${formatNewswireDate(lastModified)}**`,
     `Last update **${formatNewswireDate(updatedAt)}**`,
-    '',
     titleLink
   ].join('\n');
 }
