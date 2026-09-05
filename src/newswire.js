@@ -248,11 +248,25 @@ function normalizeArticle(article) {
       article.publishDate ||
       article.date ||
       article.published ||
-      article.createdAt ||
-      article.created_at ||
-      article.created ||
       ''
     );
+
+  const updatedAt =
+    parseDate(
+      article.updatedAt ||
+      article.updated_at ||
+      article.modifiedAt ||
+      article.modified_at ||
+      article.lastUpdated ||
+      article.last_updated ||
+      article.updated ||
+      ''
+    );
+
+  const lastModified =
+    article.lastModified ||
+    article.last_modified ||
+    null;
 
   return {
     title:
@@ -260,8 +274,83 @@ function normalizeArticle(article) {
 
     url,
 
-    date
+    date,
+
+    lastModified,
+
+    updatedAt
   };
+}
+
+async function fetchNewswireLastModified(url) {
+  if (!url) {
+    return null;
+  }
+
+  try {
+    console.log(
+      `[NEWSWIRE] Reading last-modified header: ${url}`
+    );
+
+    let response =
+      await fetch(
+        url,
+        {
+          method: 'HEAD',
+          headers: {
+            'User-Agent':
+              'RSGOracle/1.0',
+
+            Accept:
+              'text/html,application/xhtml+xml'
+          }
+        }
+      );
+
+    let lastModified =
+      response.headers.get(
+        'last-modified'
+      );
+
+    if (!lastModified) {
+      response =
+        await fetch(
+          url,
+          {
+            headers: {
+              'User-Agent':
+                'RSGOracle/1.0',
+
+              Accept:
+                'text/html,application/xhtml+xml'
+            }
+          }
+        );
+
+      lastModified =
+        response.headers.get(
+          'last-modified'
+        );
+    }
+
+    if (lastModified) {
+      console.log(
+        `[NEWSWIRE] last-modified: ${lastModified}`
+      );
+
+      return lastModified;
+    }
+
+    console.log(
+      '[NEWSWIRE] No last-modified header found.'
+    );
+  } catch (error) {
+    console.log(
+      `[NEWSWIRE] Failed to read last-modified header: ${error.message}`
+    );
+  }
+
+  return null;
 }
 
 function collectArticles(
@@ -645,7 +734,9 @@ function extractHtmlArticles(
     articles.push({
       title,
       url,
-      date
+      date,
+      lastModified: null,
+      updatedAt: null
     });
   }
 
@@ -753,6 +844,22 @@ function selectLatestArticle(
       existing.date =
         article.date;
     }
+
+    if (
+      !existing.lastModified &&
+      article.lastModified
+    ) {
+      existing.lastModified =
+        article.lastModified;
+    }
+
+    if (
+      !existing.updatedAt &&
+      article.updatedAt
+    ) {
+      existing.updatedAt =
+        article.updatedAt;
+    }
   }
 
   const dated =
@@ -804,6 +911,12 @@ function addNotification(
 
     date:
       article.date,
+
+    last_modified:
+      article.lastModified,
+
+    updated_at:
+      article.updatedAt,
 
     detected_at:
       detectedAt
@@ -866,12 +979,25 @@ async function main() {
     return;
   }
 
+  latest.lastModified =
+    await fetchNewswireLastModified(
+      latest.url
+    );
+
   console.log(
     `[NEWSWIRE] Latest article: ${latest.title}`
   );
 
   console.log(
     `[NEWSWIRE] Published: ${latest.date}`
+  );
+
+  console.log(
+    `[NEWSWIRE] Last modified: ${latest.lastModified || 'unknown'}`
+  );
+
+  console.log(
+    `[NEWSWIRE] Last update: ${latest.updatedAt || 'unknown'}`
   );
 
   console.log(
@@ -897,6 +1023,12 @@ async function main() {
         date:
           latest.date,
 
+        last_modified:
+          latest.lastModified,
+
+        updated_at:
+          latest.updatedAt,
+
         detected_at:
           detectedAt
       }
@@ -916,6 +1048,10 @@ async function main() {
     if (
       state.date !==
       latest.date ||
+      state.last_modified !==
+      latest.lastModified ||
+      state.updated_at !==
+      latest.updatedAt ||
       state.title !==
       latest.title
     ) {
@@ -928,7 +1064,13 @@ async function main() {
             latest.title,
 
           date:
-            latest.date
+            latest.date,
+
+          last_modified:
+            latest.lastModified,
+
+          updated_at:
+            latest.updatedAt
         }
       );
     }
@@ -956,6 +1098,12 @@ async function main() {
 
       date:
         latest.date,
+
+      last_modified:
+        latest.lastModified,
+
+      updated_at:
+        latest.updatedAt,
 
       detected_at:
         detectedAt
