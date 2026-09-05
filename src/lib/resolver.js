@@ -1,124 +1,37 @@
+const fs = require('fs');
+const path = require('path');
+
 const joaat = require('./joaat');
-const { request } = require('./http');
+
+const DICTIONARY_PATH = path.resolve(
+  __dirname,
+  '../../data/dictionaries/dictionary.json'
+);
+
+const OVERRIDES_PATH = path.resolve(
+  __dirname,
+  '../../config/tunable_overrides.json'
+);
 
 let dictionaryPromise = null;
-let indexesPromise = null;
 
-async function text(url) {
-  const response = await request(url, {
-    method: 'GET',
-    timeout: 15000,
-    retries: 1
-  });
+function loadJson(filePath, fallback) {
+  try {
+    if (!fs.existsSync(filePath)) {
+      return fallback;
+    }
 
-  if (!response.ok) {
+    const content = fs.readFileSync(
+      filePath,
+      'utf8'
+    );
+
+    return JSON.parse(content);
+  } catch (error) {
     throw new Error(
-      `Dictionary request failed: ${response.status} ${response.statusText || ''} ${url}`
+      `Failed to load JSON file ${filePath}: ${error.message}`
     );
   }
-
-  return response.text();
-}
-
-async function downloadDictionary(name, url) {
-  console.log(
-    `[RESOLVER] Downloading dictionary: ${url}`
-  );
-
-  const value = await text(url);
-
-  console.log(
-    `[RESOLVER] Dictionary downloaded: ${url} (${value.length} chars)`
-  );
-
-  return {
-    name,
-    value
-  };
-}
-
-function parseTunableNames(textValue) {
-  const tunables = {};
-
-  for (const rawLine of textValue.split(/\r?\n/)) {
-    const line = rawLine.trim();
-
-    if (!line || line.startsWith('#')) {
-      continue;
-    }
-
-    tunables[line] = joaat(line).signed;
-  }
-
-  return tunables;
-}
-
-function parseGtaDictionary(textValue) {
-  const other = {};
-
-  for (const rawLine of textValue.split(/\r?\n/)) {
-    const line = rawLine.trim();
-
-    if (!line || line.startsWith('#')) {
-      continue;
-    }
-
-    const parts = line.split(/\t+/);
-
-    if (parts.length < 2) {
-      continue;
-    }
-
-    const hash = parts[0].trim();
-    const name = parts.slice(1).join('\t').trim();
-
-    if (!hash || !name) {
-      continue;
-    }
-
-    other[name] = hash;
-  }
-
-  return other;
-}
-
-function parseLabels(textValue) {
-  const labels = {};
-
-  for (const rawLine of textValue.split(/\r?\n/)) {
-    const line = rawLine.trim();
-
-    if (!line || line.startsWith('#')) {
-      continue;
-    }
-
-    const parts = line.split(/\s+/);
-
-    if (parts.length < 2) {
-      continue;
-    }
-
-    const name = parts[0].trim();
-    const value = parts.slice(1).join(' ').trim();
-
-    if (!name || !value) {
-      continue;
-    }
-
-    labels[name] = value;
-  }
-
-  return labels;
-}
-
-function parseJobs(textValue) {
-  const parsed = JSON.parse(textValue);
-
-  if (!parsed || typeof parsed !== 'object') {
-    return {};
-  }
-
-  return parsed;
 }
 
 function normalizeHash(hash) {
@@ -129,627 +42,636 @@ function normalizeHash(hash) {
     return hash | 0;
   }
 
-  let value = String(hash).trim();
+  let value = String(hash || '').trim();
 
   if (!value) {
     return null;
   }
 
-  const isHex =
-    /^_?0x[0-9a-f]+$/i.test(value);
+  value = value.replace(
+    /^_?0x/i,
+    ''
+  );
 
-  if (isHex) {
-    value = value.replace(/^_?0x/i, '');
+  if (!/^[0-9a-f]+$/i.test(value)) {
+    if (/^-?\d+$/.test(value)) {
+      const number = Number(value);
 
-    const unsigned =
-      parseInt(value, 16) >>> 0;
+      if (Number.isSafeInteger(number)) {
+        return number | 0;
+      }
+    }
 
-    return unsigned | 0;
+    return null;
   }
 
-  if (/^-?\d+$/.test(value)) {
-    const number = Number(value);
+  return parseInt(value, 16) | 0;
+}
 
-    if (Number.isSafeInteger(number)) {
-      return number | 0;
+function hashAliases(hash) {
+  const normalized = normalizeHash(hash);
+
+  if (normalized === null) {
+    return [];
+  }
+
+  const unsigned = normalized >>> 0;
+  const signed = normalized | 0;
+
+  const hex = unsigned
+    .toString(16)
+    .toUpperCase()
+    .padStart(8, '0');
+
+  return [
+    String(signed),
+    String(unsigned),
+    hex,
+    `0x${hex}`,
+    `_0x${hex}`
+  ];
+}
+
+function canonicalHex(hash) {
+  const normalized = normalizeHash(hash);
+
+  if (normalized === null) {
+    return null;
+  }
+
+  return (
+    '0x' +
+    (normalized >>> 0)
+      .toString(16)
+      .toUpperCase()
+      .padStart(8, '0')
+  );
+}
+
+function addIndex(index, hash, value) {
+  for (const alias of hashAliases(hash)) {
+    if (!index.has(alias)) {
+      index.set(alias, value);
+    }
+  }
+}
+
+function buildOtherIndex(other) {
+  const index = new Map();
+
+  for (
+    const [name, hash]
+    of Object.entries(other || {})
+  ) {
+    addIndex(
+      index,
+      hash,
+      String(name).toUpperCase()
+    );
+  }
+
+  return index;
+}
+
+function buildJobsIndex(jobs) {
+  const index = new Map();
+
+  for (
+    const [hash, name]
+    of Object.entries(jobs || {})
+  ) {
+    addIndex(
+      index,
+      hash,
+      String(name).toUpperCase()
+    );
+  }
+
+  return index;
+}
+
+function buildTunableIndex(tunables) {
+  const index = new Map();
+
+  for (
+    const [name, entry]
+    of Object.entries(tunables || {})
+  ) {
+    const upperName =
+      String(name).toUpperCase();
+
+    if (
+      entry &&
+      typeof entry === 'object'
+    ) {
+      if (entry.hash !== undefined) {
+        addIndex(
+          index,
+          entry.hash,
+          upperName
+        );
+      }
+
+      if (
+        entry.sum &&
+        typeof entry.sum === 'object'
+      ) {
+        for (
+          const [context, hash]
+          of Object.entries(entry.sum)
+        ) {
+          addIndex(
+            index,
+            hash,
+            {
+              name: upperName,
+              context
+            }
+          );
+        }
+      }
+    } else {
+      addIndex(
+        index,
+        entry,
+        upperName
+      );
+    }
+  }
+
+  return index;
+}
+
+function buildContextIndex(contexts) {
+  const index = new Map();
+
+  for (
+    const [context, hash]
+    of Object.entries(contexts || {})
+  ) {
+    index.set(
+      String(context).toUpperCase(),
+      {
+        signed:
+          normalizeHash(hash),
+        hash
+      }
+    );
+  }
+
+  return index;
+}
+
+async function buildDictionary() {
+  console.log(
+    '[RESOLVER] Loading local dictionary...'
+  );
+
+  const dictionary = loadJson(
+    DICTIONARY_PATH,
+    null
+  );
+
+  if (!dictionary) {
+    throw new Error(
+      `Local resolver dictionary not found: ${DICTIONARY_PATH}`
+    );
+  }
+
+  const overrides = loadJson(
+    OVERRIDES_PATH,
+    {}
+  );
+
+  const tunables =
+    dictionary.tunables || {};
+
+  const contexts =
+    dictionary.contexts || {};
+
+  const other =
+    dictionary.other || {};
+
+  const jobs =
+    dictionary.jobs || {};
+
+  const indexes = {
+    tunables:
+      buildTunableIndex(tunables),
+
+    contexts:
+      buildContextIndex(contexts),
+
+    other:
+      buildOtherIndex(other),
+
+    jobs:
+      buildJobsIndex(jobs),
+
+    overrides:
+      new Map()
+  };
+
+  for (
+    const [hash, name]
+    of Object.entries(overrides)
+  ) {
+    if (
+      typeof name !== 'string' ||
+      !name.trim()
+    ) {
+      continue;
+    }
+
+    indexes.overrides.set(
+      canonicalHex(hash),
+      name.trim().toUpperCase()
+    );
+  }
+
+  console.log(
+    `[RESOLVER] Local dictionary ready. ` +
+    `Tunables: ${Object.keys(tunables).length}, ` +
+    `Contexts: ${Object.keys(contexts).length}, ` +
+    `Other: ${Object.keys(other).length}, ` +
+    `Jobs: ${Object.keys(jobs).length}, ` +
+    `Overrides: ${indexes.overrides.size}`
+  );
+
+  return {
+    dictionary,
+    indexes
+  };
+}
+
+function lookupOverride(
+  hash,
+  overrides
+) {
+  const key =
+    canonicalHex(hash);
+
+  if (!key) {
+    return null;
+  }
+
+  return (
+    overrides.get(key) ||
+    null
+  );
+}
+
+function lookupDirect(
+  hash,
+  index
+) {
+  for (
+    const alias
+    of hashAliases(hash)
+  ) {
+    const result =
+      index.get(alias);
+
+    if (result) {
+      return result;
     }
   }
 
   return null;
 }
 
-function hashAliases(hash) {
-  const normalized =
-    normalizeHash(hash);
-
-  if (normalized === null) {
-    return [];
-  }
-
-  const unsigned =
-    normalized >>> 0;
-
-  const signed =
-    normalized | 0;
-
-  const hex =
-    `0x${unsigned
-      .toString(16)
-      .toUpperCase()
-      .padStart(8, '0')}`;
-
-  const shortHex =
-    `0x${unsigned
-      .toString(16)
-      .toUpperCase()}`;
-
-  return [
-    String(signed),
-    String(unsigned),
-    hex,
-    shortHex
-  ];
-}
-
-function addHashAliases(map, hash, value) {
-  const aliases =
-    hashAliases(hash);
-
-  for (const alias of aliases) {
-    if (!map.has(alias)) {
-      map.set(alias, value);
-    }
-  }
-}
-
-async function buildDictionary(config) {
-  const resolverConfig =
-    config.resolver || {};
-
-  const sources = {
-    names:
-      resolverConfig.tunable_names_url,
-    gta:
-      resolverConfig.gta_dictionary_url,
-    labels:
-      resolverConfig.gta_labels_url,
-    jobs:
-      resolverConfig.jobs_dictionary_url
-  };
-
-  console.log(
-    '[RESOLVER] Dictionary sources:',
-    sources
-  );
-
-  const downloads =
-    await Promise.all([
-      downloadDictionary(
-        'names',
-        sources.names
-      ),
-      downloadDictionary(
-        'gta',
-        sources.gta
-      ),
-      downloadDictionary(
-        'labels',
-        sources.labels
-      ),
-      downloadDictionary(
-        'jobs',
-        sources.jobs
-      )
-    ]);
-
-  const raw = {};
-
-  for (const item of downloads) {
-    raw[item.name] =
-      item.value;
-  }
-
-  console.log(
-    '[RESOLVER] Building contexts...'
-  );
-
-  const tunables =
-    parseTunableNames(
-      raw.names
-    );
-
-  const gta =
-    parseGtaDictionary(
-      raw.gta
-    );
-
-  const labels =
-    parseLabels(
-      raw.labels
-    );
-
-  const jobs =
-    parseJobs(
-      raw.jobs
-    );
-
-  const other = {
-    ...gta
-  };
-
-  for (
-    const [name, value]
-    of Object.entries(labels)
-  ) {
-    other[name] =
-      joaat(value).signed;
-  }
-
-  const dictionary = {
-    tunables,
-    other,
-    jobs
-  };
-
-  console.log(
-    `[RESOLVER] Dictionary ready. ` +
-    `Tunables: ${Object.keys(dictionary.tunables).length}, ` +
-    `other: ${Object.keys(dictionary.other).length}, ` +
-    `jobs: ${Object.keys(dictionary.jobs).length}`
-  );
-
-  return dictionary;
-}
-
-function buildIndexes(dictionary) {
-  console.log(
-    '[RESOLVER] Building resolver indexes...'
-  );
-
-  const tunableByContext =
-    new Map();
-
-  const tunableByHash =
-    new Map();
-
-  for (
-    const [name, hash]
-    of Object.entries(
-      dictionary.tunables
-    )
-  ) {
-    const upperName =
-      String(name).toUpperCase();
-
-    const parts =
-      upperName.split('_');
-
-    const contexts =
-      new Set();
-
-    if (parts.length >= 1) {
-      contexts.add(parts[0]);
-    }
-
-    if (parts.length >= 2) {
-      contexts.add(
-        `${parts[0]}_${parts[1]}`
-      );
-    }
-
-    if (parts.length >= 3) {
-      contexts.add(
-        `${parts[0]}_${parts[1]}_${parts[2]}`
-      );
-    }
-
-    contexts.add('GLOBAL');
-
-    addHashAliases(
-      tunableByHash,
-      hash,
-      upperName
-    );
-
-    for (
-      const context
-      of contexts
-    ) {
-      if (
-        !tunableByContext.has(
-          context
-        )
-      ) {
-        tunableByContext.set(
-          context,
-          new Map()
-        );
-      }
-
-      addHashAliases(
-        tunableByContext.get(
-          context
-        ),
-        hash,
-        upperName
-      );
-    }
-  }
-
-  const otherByValue =
-    new Map();
-
-  for (
-    const [key, hash]
-    of Object.entries(
-      dictionary.other
-    )
-  ) {
-    addHashAliases(
-      otherByValue,
-      hash,
-      String(key).toUpperCase()
-    );
-  }
-
-  console.log(
-    `[RESOLVER] Resolver indexes ready. ` +
-    `Contexts: ${tunableByContext.size}, ` +
-    `Reverse hash index: ${tunableByHash.size}`
-  );
-
-  return {
-    tunableByContext,
-    tunableByHash,
-    otherByValue
-  };
-}
-
-function makeResolver(
-  dictionary,
-  indexes,
-  platform
+function resolveNumber(
+  value,
+  indexes
 ) {
-  const {
-    tunableByContext,
-    tunableByHash,
-    otherByValue
-  } = indexes;
+  if (
+    typeof value !== 'number'
+  ) {
+    return value;
+  }
 
-  const cache =
-    new Map();
+  const override =
+    lookupOverride(
+      value,
+      indexes.overrides
+    );
 
-  function resolveValue(value) {
-    if (
-      typeof value !== 'number'
-    ) {
-      return value;
-    }
+  if (override) {
+    return override;
+  }
 
-    const aliases =
-      hashAliases(value);
+  const other =
+    lookupDirect(
+      value,
+      indexes.other
+    );
 
-    for (
-      const alias
-      of aliases
-    ) {
-      const name =
-        otherByValue.get(alias);
+  if (other) {
+    return other;
+  }
 
-      if (name) {
-        return name;
-      }
+  const job =
+    lookupDirect(
+      value,
+      indexes.jobs
+    );
+
+  if (job) {
+    return job;
+  }
+
+  return value;
+}
+
+function resolveValue(
+  value,
+  context,
+  indexes
+) {
+  if (
+    typeof value === 'number'
+  ) {
+    return resolveNumber(
+      value,
+      indexes
+    );
+  }
+
+  if (
+    typeof value === 'string'
+  ) {
+    const override =
+      lookupOverride(
+        value,
+        indexes.overrides
+      );
+
+    if (override) {
+      return override;
     }
 
     return value;
   }
 
-  function lookup(
-    hash,
-    context
-  ) {
-    const aliases =
-      hashAliases(hash);
-
-    if (!aliases.length) {
-      return null;
-    }
-
-    if (context) {
-      const contextMap =
-        tunableByContext.get(
-          context
-        );
-
-      if (contextMap) {
-        for (
-          const alias
-          of aliases
-        ) {
-          const name =
-            contextMap.get(alias);
-
-          if (name) {
-            return name;
-          }
-        }
-      }
-    }
-
-    for (
-      const alias
-      of aliases
-    ) {
-      const name =
-        tunableByHash.get(alias);
-
-      if (name) {
-        return name;
-      }
-    }
-
-    for (
-      const alias
-      of aliases
-    ) {
-      const otherName =
-        otherByValue.get(alias);
-
-      if (otherName) {
-        return otherName;
-      }
-    }
-
-    if (
-      platform &&
-      platform
-        .toLowerCase()
-        .includes('pc')
-    ) {
-      for (
-        const alias
-        of aliases
-      ) {
-        const jobsName =
-          dictionary.jobs[alias];
-
-        if (jobsName) {
-          return String(
-            jobsName
-          ).toUpperCase();
-        }
-      }
-    }
-
-    return null;
+  if (Array.isArray(value)) {
+    return value.map(
+      item =>
+        resolveValue(
+          item,
+          context,
+          indexes
+        )
+    );
   }
 
-  function resolveObject(
-    value,
-    context,
-    depth = 0
+  if (
+    value &&
+    typeof value === 'object'
   ) {
-    if (depth > 50) {
-      return value;
-    }
-
-    if (
-      typeof value === 'number'
-    ) {
-      return resolveValue(value);
-    }
-
-    if (Array.isArray(value)) {
-      return value.map(
-        item =>
-          resolveObject(
-            item,
-            context,
-            depth + 1
-          )
-      );
-    }
-
-    if (
-      !value ||
-      typeof value !== 'object'
-    ) {
-      return value;
-    }
-
     const result = {};
 
     for (
       const [key, item]
       of Object.entries(value)
     ) {
-      let nextContext =
-        context;
-
-      if (
-        typeof item === 'string' &&
-        item.length > 0
-      ) {
-        const upperKey =
-          key.toUpperCase();
-
-        if (
-          upperKey.includes(
-            'CONTEXT'
-          ) ||
-          upperKey.includes(
-            'TUNABLE'
-          )
-        ) {
-          nextContext =
-            item.toUpperCase();
-        }
-      }
-
       result[key] =
-        resolveObject(
+        resolveValue(
           item,
-          nextContext,
-          depth + 1
+          context,
+          indexes
         );
     }
 
     return result;
   }
 
-  function resolve(tunables) {
-    const result = {};
+  return value;
+}
 
-    let processed = 0;
-    let resolved = 0;
-
-    const entries =
-      Object.entries(tunables);
-
-    const total =
-      entries.length;
-
-    console.log(
-      `[RESOLVER] Starting value resolution: ${total} entries`
+function resolveHash(
+  hash,
+  previousContext,
+  indexes
+) {
+  const override =
+    lookupOverride(
+      hash,
+      indexes.overrides
     );
 
-    let previousContext =
-      null;
+  if (override) {
+    return {
+      name: override,
+      context:
+        previousContext || null,
+      source: 'override'
+    };
+  }
+
+  if (previousContext) {
+    const context =
+      String(previousContext)
+        .toUpperCase();
 
     for (
-      const [key, value]
-      of entries
+      const alias
+      of hashAliases(hash)
     ) {
-      const rawKey =
-        String(key).trim();
+      const entry =
+        indexes.tunables.get(alias);
 
-      const upperKey =
-        rawKey.toUpperCase();
+      if (
+        entry &&
+        typeof entry === 'object' &&
+        entry.name &&
+        String(entry.context)
+          .toUpperCase() === context
+      ) {
+        return {
+          name: entry.name,
+          context,
+          source: 'context'
+        };
+      }
+    }
+  }
 
-      let resolvedKey =
-        null;
+  const direct =
+    lookupDirect(
+      hash,
+      indexes.tunables
+    );
 
-      const isHexHash =
-        /^_?0x[0-9A-F]+$/i.test(
+  if (
+    direct &&
+    typeof direct === 'string'
+  ) {
+    return {
+      name: direct,
+      context:
+        previousContext || null,
+      source: 'direct'
+    };
+  }
+
+  return null;
+}
+
+function extractContextFromName(
+  key
+) {
+  const upper =
+    String(key)
+      .toUpperCase();
+
+  const knownPrefixes = [
+    'BASE_GLOBALS',
+    'CD_GLOBAL',
+    'MP_GLOBAL',
+    'MP_FM_MEMBERSHIP',
+    'MP_CNC_TEAM_COP',
+    'MP_CNC_TEAM_VAGOS',
+    'MP_CNC_TEAM_LOST',
+    'MP_FM_DM',
+    'MP_FM_RACES',
+    'MP_FM_MISSIONS',
+    'MP_FM_SURVIVAL',
+    'MP_FM_BASEJUMP',
+    'MP_FM_CAPTURE',
+    'MP_FM_LTS',
+    'MP_FM_HEIST',
+    'MP_FM_CONTACT',
+    'MP_FM_RANDOM',
+    'MP_FM_VERSUS',
+    'MP_FM_GANG_ATTACK',
+    'MP_FMADVERSARY',
+    'MP_FM'
+  ];
+
+  for (
+    const prefix
+    of knownPrefixes
+  ) {
+    if (
+      upper === prefix ||
+      upper.startsWith(
+        `${prefix}_`
+      )
+    ) {
+      return prefix;
+    }
+  }
+
+  return null;
+}
+
+function resolve(
+  tunables,
+  platform,
+  indexes
+) {
+  const result = {};
+
+  const entries =
+    Object.entries(
+      tunables || {}
+    );
+
+  let processed = 0;
+  let resolved = 0;
+
+  let previousContext = null;
+
+  console.log(
+    `[RESOLVER] Starting value resolution: ${entries.length} entries`
+  );
+
+  for (
+    const [key, value]
+    of entries
+  ) {
+    const rawKey =
+      String(key)
+        .trim();
+
+    const isHash =
+      /^_?0x[0-9a-f]+$/i.test(
+        rawKey
+      );
+
+    if (!isHash) {
+      const context =
+        extractContextFromName(
           rawKey
         );
 
-      if (isHexHash) {
-        resolvedKey =
-          lookup(
-            rawKey,
-            previousContext
-          );
-      } else {
-        const parts =
-          upperKey.split('_');
-
-        if (parts.length >= 2) {
-          previousContext =
-            `${parts[0]}_${parts[1]}`;
-        } else if (
-          parts.length === 1
-        ) {
-          previousContext =
-            parts[0];
-        }
-
-        const calculated =
-          joaat(upperKey);
-
-        resolvedKey =
-          lookup(
-            calculated.signed,
-            previousContext
-          );
-
-        if (!resolvedKey) {
-          resolvedKey =
-            lookup(
-              calculated.unsigned,
-              previousContext
-            );
-        }
+      if (context) {
+        previousContext =
+          context;
       }
 
-      const cacheKey =
-        `${previousContext || ''}:${upperKey}`;
-
-      if (
-        cache.has(cacheKey)
-      ) {
-        const cached =
-          cache.get(cacheKey);
-
-        result[cached.key] =
-          resolveObject(
-            value,
-            previousContext
-          );
-
-        processed++;
-
-        continue;
-      }
-
-      if (resolvedKey) {
-        resolved++;
-
-        cache.set(
-          cacheKey,
-          {
-            key: resolvedKey
-          }
+      result[rawKey] =
+        resolveValue(
+          value,
+          previousContext,
+          indexes
         );
-
-        result[resolvedKey] =
-          resolveObject(
-            value,
-            previousContext
-          );
-      } else {
-        cache.set(
-          cacheKey,
-          {
-            key: upperKey
-          }
-        );
-
-        result[upperKey] =
-          resolveObject(
-            value,
-            previousContext
-          );
-      }
 
       processed++;
-
-      if (
-        processed % 5000 === 0 ||
-        processed === total
-      ) {
-        console.log(
-          `[RESOLVER] Progress: ` +
-          `${processed}/${total} ` +
-          `(${resolved} resolved)`
-        );
-      }
+      continue;
     }
 
-    console.log(
-      `[RESOLVER] Resolution complete: ` +
-      `${processed} entries processed, ` +
-      `${resolved} resolved`
-    );
+    const match =
+      resolveHash(
+        rawKey,
+        previousContext,
+        indexes
+      );
 
-    return result;
+    if (match) {
+      result[match.name] =
+        resolveValue(
+          value,
+          match.context,
+          indexes
+        );
+
+      resolved++;
+
+      if (match.context) {
+        previousContext =
+          match.context;
+      }
+    } else {
+      result[rawKey] =
+        resolveValue(
+          value,
+          previousContext,
+          indexes
+        );
+    }
+
+    processed++;
+
+    if (
+      processed % 5000 === 0 ||
+      processed === entries.length
+    ) {
+      console.log(
+        `[RESOLVER] Progress: ` +
+        `${processed}/${entries.length} ` +
+        `(${resolved} resolved)`
+      );
+    }
   }
 
-  return {
-    resolve,
-    lookup,
-    resolveValue
-  };
+  console.log(
+    `[RESOLVER] Resolution complete: ` +
+    `${processed} entries processed, ` +
+    `${resolved} resolved`
+  );
+
+  return result;
 }
 
 async function getResolver(
@@ -758,36 +680,45 @@ async function getResolver(
 ) {
   if (!dictionaryPromise) {
     dictionaryPromise =
-      buildDictionary(config)
+      buildDictionary()
         .catch(error => {
-          dictionaryPromise =
-            null;
+          dictionaryPromise = null;
           throw error;
         });
   }
 
-  const dictionary =
+  const {
+    dictionary,
+    indexes
+  } =
     await dictionaryPromise;
 
-  if (!indexesPromise) {
-    indexesPromise =
-      Promise.resolve(
-        buildIndexes(dictionary)
-      ).catch(error => {
-        indexesPromise =
-          null;
-        throw error;
-      });
-  }
+  return {
+    resolve(tunables) {
+      return resolve(
+        tunables,
+        platform,
+        indexes
+      );
+    },
 
-  const indexes =
-    await indexesPromise;
+    lookup(hash, context = null) {
+      return resolveHash(
+        hash,
+        context,
+        indexes
+      );
+    },
 
-  return makeResolver(
-    dictionary,
-    indexes,
-    platform
-  );
+    resolveValue(value) {
+      return resolveNumber(
+        value,
+        indexes
+      );
+    },
+
+    dictionary
+  };
 }
 
 module.exports = {
