@@ -128,7 +128,17 @@ function loadTunablesSummary(
   title,
   platform
 ) {
-  const file = path.join(
+  const decryptedFile = path.join(
+    __dirname,
+    '..',
+    '..',
+    'data',
+    'current',
+    String(title),
+    `${String(platform)}.decrypted`
+  );
+
+  const resolvedFile = path.join(
     __dirname,
     '..',
     '..',
@@ -138,24 +148,85 @@ function loadTunablesSummary(
     `${String(platform)}.json`
   );
 
-  if (!fs.existsSync(file)) {
-    return {
-      eventWeekly: null,
-      tunableVersion: null
-    };
-  }
-
   try {
-    const data =
+    let decryptedData = null;
+
+    if (fs.existsSync(decryptedFile)) {
+      decryptedData =
+        JSON.parse(
+          fs.readFileSync(
+            decryptedFile,
+            'utf8'
+          )
+        );
+    }
+
+    const decryptedTunables =
+      decryptedData?.tunables;
+
+    if (
+      decryptedTunables &&
+      typeof decryptedTunables === 'object'
+    ) {
+      const normalizedTitle =
+        String(title).toLowerCase();
+
+      const normalizedPlatform =
+        String(platform).toLowerCase();
+
+      if (
+        normalizedTitle === 'gta5' &&
+        normalizedPlatform === 'pcros'
+      ) {
+        return {
+          eventWeekly:
+            decryptedTunables._0x57BBF070 ??
+            null,
+
+          tunableVersion:
+            decryptedTunables._0xA8443DB2 ??
+            null
+        };
+      }
+
+      const eventWeekly =
+        decryptedTunables.EVENT_WKLY ??
+        decryptedTunables._0x6F758B7B ??
+        null;
+
+      const tunableVersion =
+        decryptedTunables.TUNABLE_VERSION ??
+        decryptedTunables._0x1EED3E39 ??
+        null;
+
+      if (
+        eventWeekly !== null ||
+        tunableVersion !== null
+      ) {
+        return {
+          eventWeekly,
+          tunableVersion
+        };
+      }
+    }
+
+    if (!fs.existsSync(resolvedFile)) {
+      return {
+        eventWeekly: null,
+        tunableVersion: null
+      };
+    }
+
+    const resolvedData =
       JSON.parse(
         fs.readFileSync(
-          file,
+          resolvedFile,
           'utf8'
         )
       );
 
     const tunables =
-      data?.TUNABLES;
+      resolvedData?.TUNABLES;
 
     if (
       !tunables ||
