@@ -29,6 +29,9 @@ jobs:
       - name: Check JavaScript syntax
         run: npm run check
 
+      - name: Build dictionary
+        run: node src/build-dictionary.js
+
       - name: Create data directories
         run: |
           mkdir -p data/state
@@ -53,6 +56,7 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "chore: update tunables"
+            git pull --rebase origin main
             git push
           fi
 
