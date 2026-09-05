@@ -142,20 +142,41 @@ function parseGtaDictionary(text) {
       continue;
     }
 
-    const hash = parts[0].trim();
+    const rawHash = parts[0].trim();
+
     const key = parts
       .slice(1)
       .join('\t')
       .trim();
 
-    if (!hash || !key) {
+    if (!rawHash || !key) {
       continue;
     }
 
-    const normalizedHash = hash
-      .replace(/^0x/i, '')
-      .toUpperCase()
-      .padStart(8, '0');
+    let normalizedHash;
+
+    if (/^[+-]?\d+$/.test(rawHash)) {
+      const decimalHash = Number(rawHash);
+
+      if (
+        !Number.isSafeInteger(decimalHash) ||
+        decimalHash < -2147483648 ||
+        decimalHash > 4294967295
+      ) {
+        continue;
+      }
+
+      normalizedHash =
+        (decimalHash >>> 0)
+          .toString(16)
+          .toUpperCase()
+          .padStart(8, '0');
+    } else {
+      normalizedHash = rawHash
+        .replace(/^0x/i, '')
+        .toUpperCase()
+        .padStart(8, '0');
+    }
 
     other[normalizedHash] = key;
   }
