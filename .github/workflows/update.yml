@@ -73,6 +73,8 @@ jobs:
 
       - name: Check Rockstar Newswire
         run: node src/newswire.js
+      - name: Check NewswireList API
+        run: node src/newswire-api.js
 
       - name: Send Discord notifications
         if: success()
