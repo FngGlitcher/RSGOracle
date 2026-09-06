@@ -706,7 +706,7 @@ function formatNewswireArticle({
     formatNewswirePostedTime(date);
 
   return [
-    `**New post detected at ${formatDetectionTime(detectedAt)}**`,
+    `**New newswire post detected at ${formatDetectionTime(detectedAt)}**`,
     `Posted on **${posted}**`,
     `Last modified **${formatNewswireDate(lastModified)}**`,
     titleLink
