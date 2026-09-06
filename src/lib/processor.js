@@ -25,7 +25,10 @@ function nowIso() {
 }
 
 function sha256(buffer) {
-  return crypto.createHash('sha256').update(buffer).digest('hex');
+  return crypto
+    .createHash('sha256')
+    .update(buffer)
+    .digest('hex');
 }
 
 function buildUrl(config, target) {
@@ -33,7 +36,10 @@ function buildUrl(config, target) {
 
   return config.source.url_template
     .replaceAll('{title}', target.title)
-    .replaceAll('{platform}', target.platform_path || target.platform)
+    .replaceAll(
+      '{platform}',
+      target.platform_path || target.platform
+    )
     .replaceAll('{asset}', config.source.asset);
 }
 
@@ -90,7 +96,9 @@ function readJson(file) {
   if (!fs.existsSync(file)) return null;
 
   try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
+    return JSON.parse(
+      fs.readFileSync(file, 'utf8')
+    );
   } catch {
     return null;
   }
@@ -137,27 +145,40 @@ function parseJson(body, id) {
   }
 }
 
-function metadataFromResponse(response, probeMetadata) {
+function metadataFromResponse(
+  response,
+  probeMetadata
+) {
   const headers = Object.fromEntries(
     response.headers.entries()
   );
 
   return {
     ...probeMetadata,
-    status: response.status,
-    ok: response.ok,
+
+    status:
+      response.status,
+
+    ok:
+      response.ok,
+
     last_modified:
       headers['last-modified'] ||
       probeMetadata.lastModified ||
       null,
+
     etag:
       headers.etag ||
       probeMetadata.etag ||
       null,
+
     content_length:
       headers['content-length']
-        ? Number(headers['content-length'])
+        ? Number(
+            headers['content-length']
+          )
         : null,
+
     headers
   };
 }
@@ -171,10 +192,18 @@ function unavailable(
 ) {
   state.targets[id] = {
     ...previous,
-    status: 'unavailable',
-    last_status: metadata?.status || 0,
-    last_checked: nowIso(),
-    last_error: error
+
+    status:
+      'unavailable',
+
+    last_status:
+      metadata?.status || 0,
+
+    last_checked:
+      nowIso(),
+
+    last_error:
+      error
   };
 
   return {
@@ -182,11 +211,15 @@ function unavailable(
       previous?.status === 'active'
         ? 'recovery_wait'
         : 'unavailable',
-    target: previous?.target || null,
+
+    target:
+      previous?.target || null,
+
     metadata: {
       ...(metadata || {}),
       error
     },
+
     changes: []
   };
 }
@@ -204,9 +237,13 @@ function loadJobsDictionary() {
   }
 
   try {
-    const data = JSON.parse(
-      fs.readFileSync(file, 'utf8')
-    );
+    const data =
+      JSON.parse(
+        fs.readFileSync(
+          file,
+          'utf8'
+        )
+      );
 
     if (
       !data ||
@@ -253,9 +290,7 @@ function resolveContentListValue(
   return value;
 }
 
-function resolveContentLists(
-  raw
-) {
+function resolveContentLists(raw) {
   if (
     !raw ||
     !Array.isArray(
@@ -307,7 +342,9 @@ async function resolveData(
   config,
   target
 ) {
-  if (config.resolver?.enabled === false) {
+  if (
+    config.resolver?.enabled === false
+  ) {
     return raw;
   }
 
@@ -316,10 +353,11 @@ async function resolveData(
       `[RESOLVER] Resolving tunables for ${targetId(target)}...`
     );
 
-    const resolver = await getResolver(
-      config,
-      target.platform
-    );
+    const resolver =
+      await getResolver(
+        config,
+        target.platform
+      );
 
     let resolvedData =
       resolveContentLists(raw);
@@ -337,7 +375,9 @@ async function resolveData(
 
       resolvedData = {
         ...resolvedData,
-        TUNABLES: resolvedTunables
+
+        TUNABLES:
+          resolvedTunables
       };
 
       delete resolvedData.tunables;
@@ -368,9 +408,12 @@ async function resolveData(
 }
 
 function repositoryFileUrl(relativePath) {
-  const repo = process.env.GITHUB_REPOSITORY;
+  const repo =
+    process.env.GITHUB_REPOSITORY;
+
   const ref =
-    process.env.GITHUB_REF_NAME || 'main';
+    process.env.GITHUB_REF_NAME ||
+    'main';
 
   if (!repo) {
     return null;
@@ -387,37 +430,64 @@ async function processTarget(
   config,
   state
 ) {
-  const id = targetId(target);
-  const url = buildUrl(config, target);
-  const previous = state.targets[id] || {};
-  const timestamp =
-    nowIso().replace(/[:.]/g, '-');
+  const id =
+    targetId(target);
 
-  console.log(`[TARGET] Processing ${id}`);
-  console.log(`[TARGET] URL: ${url}`);
+  const url =
+    buildUrl(
+      config,
+      target
+    );
+
+  const previous =
+    state.targets[id] || {};
+
+  const timestamp =
+    nowIso().replace(
+      /[:.]/g,
+      '-'
+    );
+
+  console.log(
+    `[TARGET] Processing ${id}`
+  );
+
+  console.log(
+    `[TARGET] URL: ${url}`
+  );
 
   let metadata;
 
   try {
-    metadata = await probe(url, {
-      timeout:
-        config.polling?.timeout_ms ?? 15000,
-      retries:
-        config.polling?.retry_count ?? 1
-    });
-  } catch (error) {
-    const event = unavailable(
-      state,
-      id,
-      previous,
-      {
-        status: 0,
-        ok: false
-      },
-      `Endpoint probe failed for ${id}: ${error.message}`
-    );
+    metadata =
+      await probe(
+        url,
+        {
+          timeout:
+            config.polling?.timeout_ms ??
+            15000,
 
-    event.target = target;
+          retries:
+            config.polling?.retry_count ??
+            1
+        }
+      );
+  } catch (error) {
+    const event =
+      unavailable(
+        state,
+        id,
+        previous,
+        {
+          status: 0,
+          ok: false
+        },
+        `Endpoint probe failed for ${id}: ${error.message}`
+      );
+
+    event.target =
+      target;
+
     return event;
   }
 
@@ -426,15 +496,18 @@ async function processTarget(
   );
 
   if (!metadata.ok) {
-    const event = unavailable(
-      state,
-      id,
-      previous,
-      metadata,
-      `Endpoint unavailable for ${id}: HTTP ${metadata.status}`
-    );
+    const event =
+      unavailable(
+        state,
+        id,
+        previous,
+        metadata,
+        `Endpoint unavailable for ${id}: HTTP ${metadata.status}`
+      );
 
-    event.target = target;
+    event.target =
+      target;
+
     return event;
   }
 
@@ -442,43 +515,60 @@ async function processTarget(
   let body;
 
   try {
-    const result = await getBuffer(url, {
-      timeout:
-        config.polling?.timeout_ms ?? 15000,
-      retries:
-        config.polling?.retry_count ?? 1
-    });
+    const result =
+      await getBuffer(
+        url,
+        {
+          timeout:
+            config.polling?.timeout_ms ??
+            15000,
 
-    response = result.response;
-    body = result.body;
+          retries:
+            config.polling?.retry_count ??
+            1
+        }
+      );
 
-    metadata = metadataFromResponse(
-      response,
-      metadata
-    );
+    response =
+      result.response;
+
+    body =
+      result.body;
+
+    metadata =
+      metadataFromResponse(
+        response,
+        metadata
+      );
   } catch (error) {
-    const event = unavailable(
-      state,
-      id,
-      previous,
-      metadata,
-      `Endpoint download failed for ${id}: ${error.message}`
-    );
+    const event =
+      unavailable(
+        state,
+        id,
+        previous,
+        metadata,
+        `Endpoint download failed for ${id}: ${error.message}`
+      );
 
-    event.target = target;
+    event.target =
+      target;
+
     return event;
   }
 
   if (!response.ok) {
-    const event = unavailable(
-      state,
-      id,
-      previous,
-      metadata,
-      `Endpoint unavailable for ${id}: HTTP ${response.status}`
-    );
+    const event =
+      unavailable(
+        state,
+        id,
+        previous,
+        metadata,
+        `Endpoint unavailable for ${id}: HTTP ${response.status}`
+      );
 
-    event.target = target;
+    event.target =
+      target;
+
     return event;
   }
 
@@ -486,6 +576,20 @@ async function processTarget(
     `[TARGET] ${id}: received ${body.length} bytes`
   );
 
+  /*
+   * Hash the encrypted payload immediately.
+   *
+   * This is the first change-detection layer.
+   * If the encrypted file is byte-for-byte identical
+   * to the previous run, there is no reason to decrypt,
+   * normalize, resolve or diff it again.
+   */
+  const encryptedHash =
+    sha256(body);
+
+  /*
+   * Save the encrypted payload as before.
+   */
   if (
     config.features?.save_encrypted !== false
   ) {
@@ -495,33 +599,112 @@ async function processTarget(
     );
   }
 
+  /*
+   * Fast path:
+   *
+   * If we already have an encrypted hash and it is
+   * identical, the source payload has not changed.
+   *
+   * Update only the monitoring metadata and return.
+   */
+  if (
+    previous.last_encrypted_hash &&
+    previous.last_encrypted_hash ===
+      encryptedHash
+  ) {
+    console.log(
+      `[HASH] ${id}: encrypted payload unchanged`
+    );
+
+    state.targets[id] = {
+      ...previous,
+
+      status:
+        'active',
+
+      last_status:
+        metadata.status,
+
+      last_checked:
+        nowIso(),
+
+      last_modified:
+        metadata.last_modified,
+
+      etag:
+        metadata.etag,
+
+      last_content_length:
+        metadata.content_length,
+
+      last_encrypted_hash:
+        encryptedHash,
+
+      last_error:
+        null
+    };
+
+    return {
+      event:
+        'unchanged',
+
+      target,
+
+      metadata,
+
+      changes: []
+    };
+  }
+
+  console.log(
+    `[HASH] ${id}: encrypted payload changed or no previous hash`
+  );
+
+  /*
+   * The encrypted payload changed.
+   *
+   * Only now do the expensive processing:
+   * decrypt -> normalize -> resolver -> diff.
+   */
+
   let raw;
 
   try {
-    if (target.decrypt === false) {
-      raw = parseJson(body, id);
+    if (
+      target.decrypt === false
+    ) {
+      raw =
+        parseJson(
+          body,
+          id
+        );
     } else {
-      raw = decryptTunables(
-        body,
-        process.env.TUNABLES_AES_KEY ||
-          undefined
-      );
+      raw =
+        decryptTunables(
+          body,
+          process.env.TUNABLES_AES_KEY ||
+            undefined
+        );
 
-      raw = normalizeTunables(
-        raw,
-        target.platform
-      );
+      raw =
+        normalizeTunables(
+          raw,
+          target.platform
+        );
     }
   } catch (error) {
-    const event = unavailable(
-      state,
-      id,
-      previous,
-      metadata,
-      `Payload processing failed for ${id}: ${error.message}`
-    );
+    const event =
+      unavailable(
+        state,
+        id,
+        previous,
+        metadata,
+        `Payload processing failed for ${id}: ${error.message}`
+      );
 
-    event.target = target;
+    event.target =
+      target;
+
     return event;
   }
 
@@ -531,21 +714,26 @@ async function processTarget(
     writeBuffer(
       decryptedPath(target),
       Buffer.from(
-        JSON.stringify(raw, null, 2) +
-          '\n'
+        JSON.stringify(
+          raw,
+          null,
+          2
+        ) + '\n'
       )
     );
   }
 
-  const resolved = await resolveData(
-    raw,
-    config,
-    target
-  );
+  const resolved =
+    await resolveData(
+      raw,
+      config,
+      target
+    );
 
-  const previousData = readJson(
-    currentPath(target)
-  );
+  const previousData =
+    readJson(
+      currentPath(target)
+    );
 
   const changes =
     previousData === null
@@ -555,22 +743,27 @@ async function processTarget(
           resolved
         );
 
-  const dataHash = sha256(
-    Buffer.from(
-      JSON.stringify(resolved)
-    )
-  );
+  const dataHash =
+    sha256(
+      Buffer.from(
+        JSON.stringify(
+          resolved
+        )
+      )
+    );
 
   const firstSeen =
     previousData === null &&
     !previous.last_hash;
 
   const recovered =
-    previous.status === 'unavailable';
+    previous.status ===
+    'unavailable';
 
   const hasChanged =
     changes.length > 0 ||
-    previous.last_hash !== dataHash;
+    previous.last_hash !==
+      dataHash;
 
   writeJson(
     currentPath(target),
@@ -582,7 +775,10 @@ async function processTarget(
     hasChanged
   ) {
     writeJson(
-      historyPath(target, timestamp),
+      historyPath(
+        target,
+        timestamp
+      ),
       resolved
     );
 
@@ -597,24 +793,31 @@ async function processTarget(
     );
   }
 
-  let changelogUrl = null;
+  let changelogUrl =
+    null;
 
   if (
     config.features?.generate_changelog !==
       false &&
-    (firstSeen ||
+    (
+      firstSeen ||
       recovered ||
-      changes.length)
+      changes.length
+    )
   ) {
-    const relative = path
-      .relative(
-        ROOT,
-        changelogPath(
-          target,
-          timestamp
+    const relative =
+      path
+        .relative(
+          ROOT,
+          changelogPath(
+            target,
+            timestamp
+          )
         )
-      )
-      .replaceAll(path.sep, '/');
+        .replaceAll(
+          path.sep,
+          '/'
+        );
 
     writeJson(
       changelogPath(
@@ -622,60 +825,113 @@ async function processTarget(
         timestamp
       ),
       {
-        generated_at: nowIso(),
-        target: id,
-        source: url,
+        generated_at:
+          nowIso(),
+
+        target:
+          id,
+
+        source:
+          url,
+
         metadata,
+
         changes
       }
     );
 
     changelogUrl =
-      repositoryFileUrl(relative);
+      repositoryFileUrl(
+        relative
+      );
   }
 
-  metadata.detected_at = nowIso();
+  metadata.detected_at =
+    nowIso();
 
   metadata.previous_content_length =
     previous.last_content_length ??
     metadata.content_length;
 
   metadata.previous_last_modified =
-    previous.last_modified || null;
+    previous.last_modified ||
+    null;
+
+  metadata.encrypted_hash =
+    encryptedHash;
+
+  metadata.previous_encrypted_hash =
+    previous.last_encrypted_hash ||
+    null;
 
   state.targets[id] = {
     ...previous,
+
     target,
-    status: 'active',
-    last_status: metadata.status,
-    last_checked: nowIso(),
+
+    status:
+      'active',
+
+    last_status:
+      metadata.status,
+
+    last_checked:
+      nowIso(),
+
     last_modified:
       metadata.last_modified,
-    etag: metadata.etag,
+
+    etag:
+      metadata.etag,
+
     last_content_length:
       metadata.content_length,
-    last_hash: dataHash,
-    last_error: null
+
+    /*
+     * Hash of the encrypted source payload.
+     * This is now the first-level change detector.
+     */
+    last_encrypted_hash:
+      encryptedHash,
+
+    /*
+     * Hash of the resolved/decrypted data.
+     * Kept for secondary verification and compatibility.
+     */
+    last_hash:
+      dataHash,
+
+    last_error:
+      null
   };
 
-  let event = 'unchanged';
+  let event =
+    'unchanged';
 
   if (firstSeen) {
-    event = 'first_seen';
+    event =
+      'first_seen';
   } else if (recovered) {
-    event = 'recovery_wait';
+    event =
+      'recovery_wait';
   } else if (
     changes.length ||
-    previous.last_hash !== dataHash
+    previous.last_hash !==
+      dataHash
   ) {
-    event = 'updated';
+    event =
+      'updated';
   }
 
   return {
     event,
+
     target,
+
     metadata,
+
     changes,
+
     currentUrl:
       repositoryFileUrl(
         path
@@ -683,8 +939,12 @@ async function processTarget(
             ROOT,
             currentPath(target)
           )
-          .replaceAll(path.sep, '/')
+          .replaceAll(
+            path.sep,
+            '/'
+          )
       ),
+
     changelogUrl
   };
 }
