@@ -5,9 +5,9 @@
     "exists": true,
     "status": 200,
     "etag": null,
-    "last_modified": "Thu, 31 Aug 2045 21:12:05 GMT",
+    "last_modified": "Fri, 01 Sep 2045 07:53:52 GMT",
     "content_hash": "ad123fe05e25dc41d54b3b4baa350b82d0c80ec416a2e27ce03c130e5ba8ccb2",
-    "checked_at": "2026-09-06T08:12:58.762Z"
+    "checked_at": "2026-09-06T14:34:36.242Z"
   },
   "benefits": {
     "name": "GTA+ Benefits",
@@ -15,8 +15,8 @@
     "exists": true,
     "status": 200,
     "etag": null,
-    "last_modified": "Thu, 31 Aug 2045 13:35:25 GMT",
-    "content_hash": "fe4820c0f90fab50762738d6ff50ed45693402dd7a1ed6b9b22db774741a9443",
-    "checked_at": "2026-09-06T08:12:58.939Z"
+    "last_modified": "Thu, 31 Aug 2045 22:23:30 GMT",
+    "content_hash": "ecbb6bb5d5c7afb55ae38dd28800cc2c7000858803b4b24e8d29d8052070e2bf",
+    "checked_at": "2026-09-06T14:34:36.351Z"
   }
 }
