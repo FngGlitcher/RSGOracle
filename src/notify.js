@@ -17,6 +17,56 @@ const {
   formatNewswireArticle
 } = require('./lib/discord');
 
+function formatNewswireApiChanged(
+  metadata
+) {
+  const results =
+    Array.isArray(
+      metadata?.results
+    )
+      ? metadata.results
+      : [];
+
+  const lines = [
+    '**NewswireList API output changed**',
+    `Results: **${
+      metadata?.count ??
+      results.length
+    }**`,
+    ''
+  ];
+
+  for (
+    const [
+      index,
+      article
+    ] of results.entries()
+  ) {
+    lines.push(
+      `### Result ${index + 1}`,
+      `ID: \`${article?.id ?? 'null'}\``,
+      `Title: ${article?.title || 'null'}`,
+      `URL: ${article?.url || 'null'}`,
+      `Created: ${article?.created || 'null'}`,
+      `Tags: ${
+        Array.isArray(article?.tags) &&
+        article.tags.length
+          ? article.tags.join(', ')
+          : 'none'
+      }`,
+      `Image: ${
+        article?.image ||
+        'null'
+      }`,
+      ''
+    );
+  }
+
+  return lines
+    .join('\n')
+    .trim();
+}
+
 async function main() {
   const config =
     loadConfig();
@@ -277,9 +327,9 @@ async function main() {
      */
     else if (
       eventType ===
-      'newswire_new_post' ||
+        'newswire_new_post' ||
       eventType ===
-      'newswire_new_article'
+        'newswire_new_article'
     ) {
       content =
         formatNewswireArticle({
@@ -301,6 +351,19 @@ async function main() {
           detectedAt:
             event.detected_at
         });
+    }
+
+    /*
+     * Independent NewswireList API monitor
+     */
+    else if (
+      eventType ===
+      'newswire_api_changed'
+    ) {
+      content =
+        formatNewswireApiChanged(
+          event.metadata
+        );
     }
 
     /*
@@ -327,10 +390,12 @@ async function main() {
   );
 }
 
-main().catch(error => {
-  console.error(
-    error
-  );
+main().catch(
+  error => {
+    console.error(
+      error
+    );
 
-  process.exit(1);
-});
+    process.exit(1);
+  }
+);
