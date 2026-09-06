@@ -31,55 +31,6 @@ function sha256(buffer) {
     .digest('hex');
 }
 
-function resolverDictionaryHash(config) {
-  if (config.resolver?.enabled === false) {
-    return 'disabled';
-  }
-
-  const files = [
-    path.join(
-      ROOT,
-      'data',
-      'dictionaries',
-      'dictionary-tunables.json'
-    ),
-    path.join(
-      ROOT,
-      'data',
-      'dictionaries',
-      'dictionary-other.json'
-    ),
-    path.join(
-      ROOT,
-      'data',
-      'dictionaries',
-      'dictionary-jobs.json'
-    ),
-    path.join(
-      ROOT,
-      'data',
-      'dictionaries',
-      'dictionary-custom.json'
-    )
-  ];
-
-  const hash = crypto.createHash('sha256');
-
-  for (const file of files) {
-    hash.update(file);
-
-    if (fs.existsSync(file)) {
-      hash.update(
-        fs.readFileSync(file)
-      );
-    } else {
-      hash.update('<missing>');
-    }
-  }
-
-  return hash.digest('hex');
-}
-
 function buildUrl(config, target) {
   if (target.url) return target.url;
 
@@ -629,18 +580,12 @@ async function processTarget(
    * Hash the encrypted payload immediately.
    *
    * This is the first change-detection layer.
+   * If the encrypted file is byte-for-byte identical
+   * to the previous run, there is no reason to decrypt,
+   * normalize, resolve or diff it again.
    */
   const encryptedHash =
     sha256(body);
-
-  /*
-   * Hash the resolver dictionaries.
-   *
-   * If a dictionary changes while the encrypted Rockstar
-   * payload stays identical, the resolver must still run.
-   */
-  const currentResolverHash =
-    resolverDictionaryHash(config);
 
   /*
    * Save the encrypted payload as before.
@@ -657,23 +602,18 @@ async function processTarget(
   /*
    * Fast path:
    *
-   * The source payload AND the resolver dictionaries
-   * must both be unchanged.
+   * If we already have an encrypted hash and it is
+   * identical, the source payload has not changed.
    *
-   * This prevents stale resolved current files when
-   * dictionary-custom.json or another resolver dictionary
-   * has been modified.
+   * Update only the monitoring metadata and return.
    */
   if (
     previous.last_encrypted_hash &&
     previous.last_encrypted_hash ===
-      encryptedHash &&
-    previous.last_resolver_hash &&
-    previous.last_resolver_hash ===
-      currentResolverHash
+      encryptedHash
   ) {
     console.log(
-      `[HASH] ${id}: encrypted payload and resolver dictionaries unchanged`
+      `[HASH] ${id}: encrypted payload unchanged`
     );
 
     state.targets[id] = {
@@ -700,9 +640,6 @@ async function processTarget(
       last_encrypted_hash:
         encryptedHash,
 
-      last_resolver_hash:
-        currentResolverHash,
-
       last_error:
         null
     };
@@ -719,26 +656,14 @@ async function processTarget(
     };
   }
 
-  if (
-    previous.last_encrypted_hash ===
-      encryptedHash &&
-    previous.last_resolver_hash !==
-      currentResolverHash
-  ) {
-    console.log(
-      `[HASH] ${id}: encrypted payload unchanged but resolver dictionaries changed`
-    );
-  } else {
-    console.log(
-      `[HASH] ${id}: encrypted payload changed or no previous hash`
-    );
-  }
+  console.log(
+    `[HASH] ${id}: encrypted payload changed or no previous hash`
+  );
 
   /*
-   * The encrypted payload changed OR the resolver dictionaries
-   * changed.
+   * The encrypted payload changed.
    *
-   * Run the complete processing chain:
+   * Only now do the expensive processing:
    * decrypt -> normalize -> resolver -> diff.
    */
 
@@ -939,13 +864,6 @@ async function processTarget(
     previous.last_encrypted_hash ||
     null;
 
-  metadata.resolver_hash =
-    currentResolverHash;
-
-  metadata.previous_resolver_hash =
-    previous.last_resolver_hash ||
-    null;
-
   state.targets[id] = {
     ...previous,
 
@@ -971,17 +889,10 @@ async function processTarget(
 
     /*
      * Hash of the encrypted source payload.
+     * This is now the first-level change detector.
      */
     last_encrypted_hash:
       encryptedHash,
-
-    /*
-     * Hash of the resolver dictionaries.
-     * A dictionary change forces re-resolution even
-     * when the Rockstar payload itself is unchanged.
-     */
-    last_resolver_hash:
-      currentResolverHash,
 
     /*
      * Hash of the resolved/decrypted data.
