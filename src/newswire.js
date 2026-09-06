@@ -1135,6 +1135,17 @@ async function main() {
       CONFIG_FILE
     ) || {};
 
+  const newswireEnabled =
+    config?.newswire?.enabled !== false;
+
+  if (!newswireEnabled) {
+    console.log(
+      '[NEWSWIRE] Newswire detection disabled by config.'
+    );
+
+    return;
+  }
+
   const configuredLimit =
     Number(
       config?.newswire?.latest_articles
@@ -1324,29 +1335,52 @@ async function main() {
     const detectedAt =
       new Date().toISOString();
 
+    /*
+     * Newswire returns the newest article first.
+     *
+     * Reverse only the notification order so that
+     * multiple new articles are sent from oldest
+     * to newest.
+     *
+     * Example:
+     *
+     * 3. newest
+     * 2. middle
+     * 1. oldest
+     *
+     * becomes:
+     *
+     * oldest
+     * middle
+     * newest
+     */
+
     const notifications =
-      newArticles.map(
-        article => ({
-          type:
-            'newswire_new_post',
+      newArticles
+        .slice()
+        .reverse()
+        .map(
+          article => ({
+            type:
+              'newswire_new_post',
 
-          title:
-            article.title,
+            title:
+              article.title,
 
-          url:
-            article.url,
+            url:
+              article.url,
 
-          date:
-            article.date || null,
+            date:
+              article.date || null,
 
-          last_modified:
-            article.lastModified ||
-            null,
+            last_modified:
+              article.lastModified ||
+              null,
 
-          detected_at:
-            detectedAt
-        })
-      );
+            detected_at:
+              detectedAt
+          })
+        );
 
     for (
       const article of latestArticles
