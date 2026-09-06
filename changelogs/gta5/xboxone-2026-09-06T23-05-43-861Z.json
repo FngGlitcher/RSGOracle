@@ -1,0 +1,27 @@
+{
+  "generated_at": "2026-09-06T23:05:48.962Z",
+  "target": "gta5/xboxone",
+  "source": "http://prod.cloud.rockstargames.com/titles/gta5/xboxone/0x1a098062.json",
+  "metadata": {
+    "status": 200,
+    "ok": true,
+    "lastModified": "Thu, 03 Sep 2026 08:44:18 GMT",
+    "etag": "\"639240218580000000\"",
+    "contentLength": 20,
+    "headers": {
+      "cache-control": "public, max-age=900",
+      "connection": "keep-alive",
+      "content-encoding": "gzip",
+      "content-length": "18143",
+      "content-type": "application/json",
+      "date": "Sun, 06 Sep 2026 23:05:44 GMT",
+      "etag": "\"639240218580000000\"",
+      "last-modified": "Thu, 03 Sep 2026 08:44:18 GMT",
+      "vary": "Accept-Encoding",
+      "x-content-type-options": "nosniff"
+    },
+    "last_modified": "Thu, 03 Sep 2026 08:44:18 GMT",
+    "content_length": 18143
+  },
+  "changes": []
+}
