@@ -673,19 +673,41 @@ function formatNewswireArticle({
       title || 'Unknown article'
     );
 
+  /*
+   * Some previously generated notifications can contain
+   * a Markdown link title after the URL:
+   *
+   * [Title](https://example.com "Title")
+   *
+   * Discord interprets the quoted part as a Markdown
+   * link title. We only want the clean URL.
+   */
   const safeUrl =
     String(
       url || ''
-    );
+    )
+      .trim()
+      .replace(
+        /\s+["'][\s\S]*["']\s*$/,
+        ''
+      )
+      .replace(
+        /\s+\([\s\S]*\)\s*$/,
+        ''
+      )
+      .trim();
 
   const titleLink =
     safeUrl
       ? `[${safeTitle}](${safeUrl})`
       : safeTitle;
 
+  const posted =
+    formatNewswirePostedTime(date);
+
   return [
     `**New post detected at ${formatDetectionTime(detectedAt)}**`,
-    `Posted ${formatNewswirePostedTime(date)}`,
+    `Posted on **${posted}**`,
     `Last modified **${formatNewswireDate(lastModified)}**`,
     titleLink
   ].join('\n');
