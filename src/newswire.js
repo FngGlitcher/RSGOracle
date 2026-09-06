@@ -31,6 +31,14 @@ const NOTIFICATIONS_FILE =
     "notifications.json"
   );
 
+const PENDING_NOTIFICATIONS_FILE =
+  path.join(
+    ROOT_DIR,
+    "data",
+    "state",
+    "pending-notifications.json"
+  );
+
 function readJson(file) {
   try {
     if (!fs.existsSync(file)) {
@@ -485,12 +493,6 @@ async function fetchNewswire(
       );
     }
 
-    /*
-     * Fallback:
-     * Rockstar currently renders the article cards in the page itself.
-     * We use those cards only if GraphQL extraction did not return
-     * usable article objects.
-     */
     let articles =
       graphqlArticles;
 
@@ -720,10 +722,6 @@ async function fetchNewswire(
       );
     }
 
-    /*
-     * Rockstar puts the featured article first.
-     * Ignore it and take the next N real articles.
-     */
     const candidates =
       unique.slice(
         1,
@@ -792,11 +790,11 @@ function normalizeState(
   };
 }
 
-function loadNotifications() {
+function loadNotifications(
+  file
+) {
   const data =
-    readJson(
-      NOTIFICATIONS_FILE
-    );
+    readJson(file);
 
   return Array.isArray(data)
     ? data
@@ -923,6 +921,62 @@ function migrateOldState(
   };
 }
 
+function appendPendingNotifications(
+  notifications
+) {
+  if (
+    !notifications.length
+  ) {
+    return;
+  }
+
+  const pending =
+    loadNotifications(
+      PENDING_NOTIFICATIONS_FILE
+    );
+
+  const existingKeys =
+    new Set(
+      pending
+        .filter(Boolean)
+        .map(
+          event =>
+            `${event.type || ""}|${event.url || ""}|${event.detected_at || ""}`
+        )
+    );
+
+  for (
+    const notification of
+      notifications
+  ) {
+    const key =
+      `${notification.type || ""}|${notification.url || ""}|${notification.detected_at || ""}`;
+
+    if (
+      existingKeys.has(key)
+    ) {
+      continue;
+    }
+
+    pending.push(
+      notification
+    );
+
+    existingKeys.add(
+      key
+    );
+  }
+
+  writeJson(
+    PENDING_NOTIFICATIONS_FILE,
+    pending
+  );
+
+  console.log(
+    `[NEWSWIRE] Pending notifications updated: ${pending.length}`
+  );
+}
+
 async function main() {
   try {
     const config =
@@ -1030,7 +1084,7 @@ async function main() {
       newArticles.length
     ) {
       const notifications =
-        loadNotifications();
+        [];
 
       const detectedAt =
         new Date().toISOString();
@@ -1039,7 +1093,7 @@ async function main() {
         const article of
           newArticles
       ) {
-        notifications.push({
+        const notification = {
           type:
             "newswire_new_post",
 
@@ -1063,7 +1117,11 @@ async function main() {
 
           detected_at:
             detectedAt
-        });
+        };
+
+        notifications.push(
+          notification
+        );
 
         if (
           !state.known_urls.includes(
@@ -1080,8 +1138,25 @@ async function main() {
         );
       }
 
+      /*
+       * Keep the existing notifications file for compatibility,
+       * but also place the events directly into the queue consumed
+       * by notify.js.
+       */
+      const existingNotifications =
+        loadNotifications(
+          NOTIFICATIONS_FILE
+        );
+
       writeJson(
         NOTIFICATIONS_FILE,
+        [
+          ...existingNotifications,
+          ...notifications
+        ]
+      );
+
+      appendPendingNotifications(
         notifications
       );
 
