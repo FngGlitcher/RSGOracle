@@ -218,7 +218,8 @@ function extractArticleObjects(
     Array.isArray(value)
   ) {
     for (
-      const item of value
+      const item of
+        value
     ) {
       extractArticleObjects(
         item,
@@ -334,6 +335,127 @@ function extractArticleObjects(
   }
 }
 
+function extractMetadataFromPayload(
+  value,
+  articleUrl,
+  result
+) {
+  if (!value) {
+    return;
+  }
+
+  if (
+    Array.isArray(value)
+  ) {
+    for (
+      const item of
+        value
+    ) {
+      extractMetadataFromPayload(
+        item,
+        articleUrl,
+        result
+      );
+    }
+
+    return;
+  }
+
+  if (
+    typeof value !==
+    "object"
+  ) {
+    return;
+  }
+
+  const possibleUrls = [
+    value.url,
+    value.link,
+    value.href,
+    value.path,
+    value.slug
+  ];
+
+  let matchesArticle =
+    false;
+
+  for (
+    const candidate of
+      possibleUrls
+  ) {
+    const normalized =
+      normalizeUrl(
+        candidate
+      );
+
+    if (
+      normalized ===
+      articleUrl
+    ) {
+      matchesArticle =
+        true;
+
+      break;
+    }
+  }
+
+  if (matchesArticle) {
+    const published =
+      normalizeDate(
+        value.datePublished ||
+        value.publishedAt ||
+        value.published_at ||
+        value.publicationDate ||
+        value.publishDate ||
+        value.date ||
+        value.createdAt ||
+        value.created_at ||
+        value.created
+      );
+
+    const modified =
+      normalizeDate(
+        value.dateModified ||
+        value.updatedAt ||
+        value.updated_at ||
+        value.modifiedAt ||
+        value.modified_at ||
+        value.updated
+      );
+
+    if (
+      published
+    ) {
+      result.date =
+        published;
+    }
+
+    if (
+      modified
+    ) {
+      result.updatedAt =
+        modified;
+    }
+  }
+
+  for (
+    const child of
+      Object.values(value)
+  ) {
+    if (
+      child &&
+      typeof child ===
+        "object"
+    ) {
+      extractMetadataFromPayload(
+        child,
+        articleUrl,
+        result
+      );
+    }
+  }
+}
+
 async function enrichArticleMetadata(
   page,
   article
@@ -345,309 +467,530 @@ async function enrichArticleMetadata(
     return article;
   }
 
+  const targetUrl =
+    normalizeUrl(
+      article.url
+    );
+
+  if (!targetUrl) {
+    return article;
+  }
+
+  const metadata = {
+    date:
+      article.date ||
+      null,
+
+    updatedAt:
+      article.updatedAt ||
+      null,
+
+    lastModified:
+      article.lastModified ||
+      null
+  };
+
+  const graphqlPayloads =
+    [];
+
+  const graphqlUrls =
+    new Set();
+
+  const responseHandler =
+    async response => {
+      try {
+        const responseUrl =
+          response.url();
+
+        if (
+          !/graph\.rockstargames\.com/i.test(
+            responseUrl
+          )
+        ) {
+          return;
+        }
+
+        graphqlUrls.add(
+          responseUrl
+        );
+
+        const headers =
+          response.headers();
+
+        const contentType =
+          String(
+            headers[
+              "content-type"
+            ] ||
+            ""
+          ).toLowerCase();
+
+        if (
+          !contentType.includes(
+            "json"
+          )
+        ) {
+          return;
+        }
+
+        const text =
+          await response.text();
+
+        if (!text) {
+          return;
+        }
+
+        let payload;
+
+        try {
+          payload =
+            JSON.parse(
+              text
+            );
+        } catch {
+          return;
+        }
+
+        graphqlPayloads.push(
+          payload
+        );
+
+        extractMetadataFromPayload(
+          payload,
+          targetUrl,
+          metadata
+        );
+      } catch {
+        // Ignore destroyed/aborted responses.
+      }
+    };
+
+  page.on(
+    "response",
+    responseHandler
+  );
+
   try {
-    const metadata =
-      await page.evaluate(
-        async url => {
-          function clean(value) {
-            if (!value) {
-              return null;
-            }
+    console.log(
+      `[NEWSWIRE] Opening article for metadata: ${targetUrl}`
+    );
 
-            const text =
-              String(value)
-                .replace(
-                  /\s+/g,
-                  " "
-                )
-                .trim();
+    let mainResponse =
+      null;
 
-            return text || null;
+    try {
+      mainResponse =
+        await page.goto(
+          targetUrl,
+          {
+            waitUntil:
+              "domcontentloaded",
+            timeout: 60000
           }
+        );
+    } catch (error) {
+      console.log(
+        `[NEWSWIRE] Article navigation warning: ${error.message}`
+      );
+    }
 
-          function parseJsonLd(
-            value,
-            result
-          ) {
-            if (!value) {
-              return;
-            }
+    /*
+     * Get the real HTTP Last-Modified header from the
+     * actual article document response.
+     *
+     * Do not parse or normalize this value.
+     */
+    if (
+      mainResponse
+    ) {
+      const headers =
+        mainResponse.headers();
 
-            if (
-              Array.isArray(value)
-            ) {
-              for (
-                const item of
-                  value
-              ) {
-                parseJsonLd(
-                  item,
-                  result
-                );
-              }
+      const lastModified =
+        headers[
+          "last-modified"
+        ];
 
-              return;
-            }
+      if (
+        lastModified
+      ) {
+        metadata.lastModified =
+          String(
+            lastModified
+          ).trim();
+      }
 
-            if (
-              typeof value !==
-              "object"
-            ) {
-              return;
-            }
-
-            if (
-              !result.date &&
-              value.datePublished
-            ) {
-              result.date =
-                value.datePublished;
-            }
-
-            if (
-              !result.updatedAt &&
-              value.dateModified
-            ) {
-              result.updatedAt =
-                value.dateModified;
-            }
-
-            if (
-              !result.date &&
-              value.dateCreated
-            ) {
-              result.date =
-                value.dateCreated;
-            }
-
-            for (
-              const child of
-                Object.values(value)
-            ) {
-              if (
-                child &&
-                typeof child ===
-                  "object"
-              ) {
-                parseJsonLd(
-                  child,
-                  result
-                );
-              }
-            }
-          }
-
-          try {
-            const response =
-              await fetch(
-                url,
-                {
-                  credentials:
-                    "include"
-                }
-              );
-
-            const lastModified =
-              response.headers.get(
-                "last-modified"
-              );
-
-            const html =
-              await response.text();
-
-            const parser =
-              new DOMParser();
-
-            const document =
-              parser.parseFromString(
-                html,
-                "text/html"
-              );
-
-            const result = {
-              date: null,
-              updatedAt: null,
-              lastModified:
-                clean(
-                  lastModified
-                )
-            };
-
-            const publishedSelectors = [
-              'meta[property="article:published_time"]',
-              'meta[name="article:published_time"]',
-              'meta[property="datePublished"]',
-              'meta[name="datePublished"]',
-              'meta[itemprop="datePublished"]',
-              'meta[name="publish-date"]',
-              'meta[name="publication-date"]',
-              'meta[name="date"]'
-            ];
-
-            const updatedSelectors = [
-              'meta[property="article:modified_time"]',
-              'meta[name="article:modified_time"]',
-              'meta[property="dateModified"]',
-              'meta[name="dateModified"]',
-              'meta[itemprop="dateModified"]',
-              'meta[name="modified"]',
-              'meta[name="lastmod"]'
-            ];
-
-            for (
-              const selector of
-                publishedSelectors
-            ) {
-              const element =
-                document.querySelector(
-                  selector
-                );
-
-              if (!element) {
-                continue;
-              }
-
-              const value =
-                element.getAttribute(
-                  "content"
-                ) ||
-                element.getAttribute(
-                  "datetime"
-                ) ||
-                element.textContent;
-
-              if (value) {
-                result.date =
-                  value.trim();
-
-                break;
-              }
-            }
-
-            for (
-              const selector of
-                updatedSelectors
-            ) {
-              const element =
-                document.querySelector(
-                  selector
-                );
-
-              if (!element) {
-                continue;
-              }
-
-              const value =
-                element.getAttribute(
-                  "content"
-                ) ||
-                element.getAttribute(
-                  "datetime"
-                ) ||
-                element.textContent;
-
-              if (value) {
-                result.updatedAt =
-                  value.trim();
-
-                break;
-              }
-            }
-
-            const jsonScripts =
-              Array.from(
-                document.querySelectorAll(
-                  'script[type="application/ld+json"]'
-                )
-              );
-
-            for (
-              const script of
-                jsonScripts
-            ) {
-              const text =
-                script.textContent;
-
-              if (!text) {
-                continue;
-              }
-
-              try {
-                const parsed =
-                  JSON.parse(text);
-
-                parseJsonLd(
-                  parsed,
-                  result
-                );
-              } catch {
-                // Ignore invalid JSON-LD.
-              }
-            }
-
-            if (
-              !result.date
-            ) {
-              const time =
-                document.querySelector(
-                  'time[datetime]'
-                );
-
-              if (time) {
-                result.date =
-                  time.getAttribute(
-                    "datetime"
-                  );
-              }
-            }
-
-            return result;
-          } catch {
-            return {
-              date: null,
-              updatedAt: null,
-              lastModified:
-                null
-            };
-          }
-        },
-        article.url
+      console.log(
+        `[NEWSWIRE] Article HTTP status: ${mainResponse.status()}`
       );
 
-    if (
-      metadata &&
-      metadata.date
-    ) {
-      article.date =
-        normalizeDate(
-          metadata.date
-        ) ||
-        article.date ||
-        null;
+      console.log(
+        `[NEWSWIRE] Article Last-Modified: ${metadata.lastModified || "unknown"}`
+      );
     }
 
-    if (
-      metadata &&
-      metadata.updatedAt
-    ) {
-      article.updatedAt =
-        normalizeDate(
-          metadata.updatedAt
-        ) ||
-        article.updatedAt ||
-        null;
+    try {
+      await page.waitForNetworkIdle({
+        idleTime: 1500,
+        timeout: 20000
+      });
+    } catch {
+      // Some Rockstar connections can remain open.
     }
 
-    if (
-      metadata &&
-      metadata.lastModified
+    /*
+     * Give Rockstar's client-side GraphQL requests enough
+     * time to finish before reading the captured payloads.
+     */
+    await new Promise(
+      resolve =>
+        setTimeout(
+          resolve,
+          3000
+        )
+    );
+
+    /*
+     * Search all captured GraphQL responses again.
+     */
+    for (
+      const payload of
+        graphqlPayloads
     ) {
-      article.lastModified =
-        metadata.lastModified;
+      extractMetadataFromPayload(
+        payload,
+        targetUrl,
+        metadata
+      );
     }
-  } catch (error) {
+
+    /*
+     * Secondary fallback using the rendered article page.
+     * This is only used when GraphQL did not provide a date.
+     */
+    if (
+      !metadata.date ||
+      !metadata.updatedAt
+    ) {
+      try {
+        const domMetadata =
+          await page.evaluate(
+            () => {
+              function clean(value) {
+                if (!value) {
+                  return null;
+                }
+
+                const text =
+                  String(value)
+                    .replace(
+                      /\s+/g,
+                      " "
+                    )
+                    .trim();
+
+                return (
+                  text ||
+                  null
+                );
+              }
+
+              function parseJsonLd(
+                value,
+                result
+              ) {
+                if (!value) {
+                  return;
+                }
+
+                if (
+                  Array.isArray(
+                    value
+                  )
+                ) {
+                  for (
+                    const item of
+                      value
+                  ) {
+                    parseJsonLd(
+                      item,
+                      result
+                    );
+                  }
+
+                  return;
+                }
+
+                if (
+                  typeof value !==
+                  "object"
+                ) {
+                  return;
+                }
+
+                if (
+                  !result.date &&
+                  value.datePublished
+                ) {
+                  result.date =
+                    clean(
+                      value.datePublished
+                    );
+                }
+
+                if (
+                  !result.updatedAt &&
+                  value.dateModified
+                ) {
+                  result.updatedAt =
+                    clean(
+                      value.dateModified
+                    );
+                }
+
+                if (
+                  !result.date &&
+                  value.dateCreated
+                ) {
+                  result.date =
+                    clean(
+                      value.dateCreated
+                    );
+                }
+
+                for (
+                  const child of
+                    Object.values(
+                      value
+                    )
+                ) {
+                  if (
+                    child &&
+                    typeof child ===
+                      "object"
+                  ) {
+                    parseJsonLd(
+                      child,
+                      result
+                    );
+                  }
+                }
+              }
+
+              const result = {
+                date:
+                  null,
+
+                updatedAt:
+                  null
+              };
+
+              const publishedSelectors = [
+                'meta[property="article:published_time"]',
+                'meta[name="article:published_time"]',
+                'meta[property="datePublished"]',
+                'meta[name="datePublished"]',
+                'meta[itemprop="datePublished"]',
+                'meta[name="publish-date"]',
+                'meta[name="publication-date"]',
+                'meta[name="date"]'
+              ];
+
+              const updatedSelectors = [
+                'meta[property="article:modified_time"]',
+                'meta[name="article:modified_time"]',
+                'meta[property="dateModified"]',
+                'meta[name="dateModified"]',
+                'meta[itemprop="dateModified"]',
+                'meta[name="modified"]',
+                'meta[name="lastmod"]'
+              ];
+
+              for (
+                const selector of
+                  publishedSelectors
+              ) {
+                const element =
+                  document.querySelector(
+                    selector
+                  );
+
+                if (!element) {
+                  continue;
+                }
+
+                const value =
+                  element.getAttribute(
+                    "content"
+                  ) ||
+                  element.getAttribute(
+                    "datetime"
+                  ) ||
+                  element.textContent;
+
+                if (value) {
+                  result.date =
+                    clean(
+                      value
+                    );
+
+                  break;
+                }
+              }
+
+              for (
+                const selector of
+                  updatedSelectors
+              ) {
+                const element =
+                  document.querySelector(
+                    selector
+                  );
+
+                if (!element) {
+                  continue;
+                }
+
+                const value =
+                  element.getAttribute(
+                    "content"
+                  ) ||
+                  element.getAttribute(
+                    "datetime"
+                  ) ||
+                  element.textContent;
+
+                if (value) {
+                  result.updatedAt =
+                    clean(
+                      value
+                    );
+
+                  break;
+                }
+              }
+
+              const jsonScripts =
+                Array.from(
+                  document.querySelectorAll(
+                    'script[type="application/ld+json"]'
+                  )
+                );
+
+              for (
+                const script of
+                  jsonScripts
+              ) {
+                const text =
+                  script.textContent;
+
+                if (!text) {
+                  continue;
+                }
+
+                try {
+                  const parsed =
+                    JSON.parse(
+                      text
+                    );
+
+                  parseJsonLd(
+                    parsed,
+                    result
+                  );
+                } catch {
+                  // Ignore invalid JSON-LD.
+                }
+              }
+
+              if (
+                !result.date
+              ) {
+                const time =
+                  document.querySelector(
+                    'time[datetime]'
+                  );
+
+                if (time) {
+                  result.date =
+                    time.getAttribute(
+                      "datetime"
+                    );
+                }
+              }
+
+              return result;
+            }
+          );
+
+        if (
+          domMetadata
+        ) {
+          if (
+            !metadata.date &&
+            domMetadata.date
+          ) {
+            metadata.date =
+              normalizeDate(
+                domMetadata.date
+              );
+          }
+
+          if (
+            !metadata.updatedAt &&
+            domMetadata.updatedAt
+          ) {
+            metadata.updatedAt =
+              normalizeDate(
+                domMetadata.updatedAt
+              );
+          }
+        }
+      } catch (error) {
+        console.log(
+          `[NEWSWIRE] DOM metadata fallback failed: ${error.message}`
+        );
+      }
+    }
+
+    article.date =
+      metadata.date ||
+      article.date ||
+      null;
+
+    article.updatedAt =
+      metadata.updatedAt ||
+      article.updatedAt ||
+      null;
+
+    article.lastModified =
+      metadata.lastModified ||
+      article.lastModified ||
+      null;
+
     console.log(
-      `[NEWSWIRE] Metadata lookup failed for ${article.url}: ${error.message}`
+      `[NEWSWIRE] Article GraphQL responses: ${graphqlPayloads.length}`
+    );
+
+    console.log(
+      `[NEWSWIRE] Article GraphQL endpoints: ${graphqlUrls.size}`
+    );
+
+    console.log(
+      `[NEWSWIRE] Published: ${article.date || "unknown"}`
+    );
+
+    console.log(
+      `[NEWSWIRE] Last-Modified header: ${article.lastModified || "unknown"}`
+    );
+
+    console.log(
+      `[NEWSWIRE] Updated: ${article.updatedAt || "unknown"}`
+    );
+  } finally {
+    page.off(
+      "response",
+      responseHandler
     );
   }
 
@@ -759,7 +1102,9 @@ async function fetchNewswire(
             return;
           }
 
-          graphqlUrls.add(url);
+          graphqlUrls.add(
+            url
+          );
 
           const contentType =
             response
@@ -787,7 +1132,7 @@ async function fetchNewswire(
               JSON.parse(text)
             );
           } catch {
-            // Ignore non-JSON GraphQL responses.
+            // Ignore invalid GraphQL JSON.
           }
         } catch {
           // Ignore destroyed/aborted responses.
@@ -1009,16 +1354,20 @@ async function fetchNewswire(
                 cleanTitle(
                   article.title
                 ),
+
               url:
                 normalizeUrl(
                   article.url
                 ),
+
               date:
                 normalizeDate(
                   article.dateText
                 ),
+
               updatedAt:
                 null,
+
               lastModified:
                 null
             })
