@@ -176,6 +176,119 @@ function formatArticle(
   };
 }
 
+/**
+ * Extract the persisted GraphQL query hash from a NewswireList request.
+ *
+ * Rockstar can send the GraphQL operation either:
+ *
+ * 1. In the URL query string:
+ *      ?operationName=NewswireList
+ *      &extensions={"persistedQuery":{"sha256Hash":"..."}}
+ *
+ * 2. In the POST body:
+ *      {
+ *        "operationName": "NewswireList",
+ *        "variables": {...},
+ *        "extensions": {
+ *          "persistedQuery": {
+ *            "sha256Hash": "..."
+ *          }
+ *        }
+ *      }
+ *
+ * Support both formats.
+ */
+function extractNewswireHashFromRequest(
+  request
+) {
+  const url =
+    request.url();
+
+  const postData =
+    request.postData() || '';
+
+  let operationName =
+    null;
+
+  try {
+    const parsedUrl =
+      new URL(url);
+
+    operationName =
+      parsedUrl.searchParams.get(
+        'operationName'
+      );
+  } catch {
+    // Ignore malformed URLs.
+  }
+
+  let body =
+    null;
+
+  if (postData) {
+    try {
+      body =
+        JSON.parse(
+          postData
+        );
+    } catch {
+      // Some requests may use a non-JSON body.
+    }
+  }
+
+  operationName =
+    operationName ||
+    body?.operationName ||
+    null;
+
+  if (
+    operationName !==
+    'NewswireList'
+  ) {
+    return null;
+  }
+
+  /*
+   * Prefer the request body because this is the current GraphQL format.
+   */
+  let extensions =
+    body?.extensions ||
+    null;
+
+  /*
+   * Fall back to the URL query string for older/current variants.
+   */
+  if (!extensions) {
+    try {
+      const parsedUrl =
+        new URL(url);
+
+      const encodedExtensions =
+        parsedUrl.searchParams.get(
+          'extensions'
+        );
+
+      if (
+        encodedExtensions
+      ) {
+        extensions =
+          JSON.parse(
+            encodedExtensions
+          );
+      }
+    } catch {
+      // Ignore malformed extension data.
+    }
+  }
+
+  return (
+    extensions
+      ?.persistedQuery
+      ?.sha256Hash ||
+    null
+  );
+}
+
 async function getNewswireHash(
   browser
 ) {
@@ -185,78 +298,95 @@ async function getNewswireHash(
   let hash =
     null;
 
+  /*
+   * Puppeteer request interception is required because the persisted query
+   * hash is generated/embedded by Rockstar's frontend rather than being
+   * exposed as a stable value in this repository.
+   */
   await page.setRequestInterception(
     true
   );
 
-  page.on(
-    'request',
+  const requestHandler =
     request => {
-      const url =
-        request.url();
-
-      if (
-        !hash &&
-        url.includes(
-          'operationName=NewswireList'
-        )
-      ) {
+      if (!hash) {
         try {
-          const parsedUrl =
-            new URL(url);
-
-          const extensions =
-            parsedUrl.searchParams.get(
-              'extensions'
+          const capturedHash =
+            extractNewswireHashFromRequest(
+              request
             );
 
-          if (extensions) {
-            const parsedExtensions =
-              JSON.parse(
-                extensions
-              );
-
+          if (capturedHash) {
             hash =
-              parsedExtensions
-                ?.persistedQuery
-                ?.sha256Hash ||
-              null;
+              capturedHash;
+
+            console.log(
+              '[NEWSWIRE-API] Captured NewswireList persisted query hash.'
+            );
           }
         } catch (error) {
           console.warn(
-            `[NEWSWIRE-API] Unable to parse NewswireList request: ${error.message}`
+            `[NEWSWIRE-API] Unable to inspect NewswireList request: ${error.message}`
           );
         }
-
-        request
-          .abort()
-          .catch(
-            () => {}
-          );
-
-        return;
       }
 
+      /*
+       * IMPORTANT:
+       * Do not abort the NewswireList request after discovering it.
+       *
+       * The previous implementation aborted this request, which could
+       * interfere with Rockstar's frontend bootstrap and make hash
+       * discovery dependent on request timing.
+       */
       request
         .continue()
         .catch(
           () => {}
         );
-    }
+    };
+
+  page.on(
+    'request',
+    requestHandler
   );
 
-  await page.goto(
-    NEWSWIRE_URL,
-    {
-      waitUntil:
-        'networkidle2',
+  try {
+    await page.goto(
+      NEWSWIRE_URL,
+      {
+        waitUntil:
+          'networkidle2',
 
-      timeout:
-        DEFAULT_TIMEOUT
+        timeout:
+          DEFAULT_TIMEOUT
+      }
+    );
+
+    /*
+     * The GraphQL request can sometimes happen shortly after the initial
+     * networkidle2 event. Give the application an additional short window.
+     */
+    if (!hash) {
+      try {
+        await page.waitForNetworkIdle({
+          idleTime: 500,
+          timeout: 5000
+        });
+      } catch {
+        /*
+         * The final hash check below determines whether discovery succeeded.
+         */
+      }
     }
-  );
+  } finally {
+    page.off(
+      'request',
+      requestHandler
+    );
 
-  await page.close();
+    await page.close();
+  }
 
   if (!hash) {
     throw new Error(
