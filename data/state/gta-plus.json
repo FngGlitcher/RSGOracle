@@ -1,0 +1,20 @@
+{
+  "website": {
+    "name": "GTA+ Website",
+    "url": "https://www.rockstargames.com/gta-plus/join",
+    "exists": true,
+    "status": 200,
+    "etag": null,
+    "last_modified": "Wed, 30 Aug 2045 22:40:34 GMT",
+    "checked_at": "2026-09-06T03:16:38.831Z"
+  },
+  "benefits": {
+    "name": "GTA+ Benefits",
+    "url": "https://www.rockstargames.com/gta-plus/benefits",
+    "exists": true,
+    "status": 200,
+    "etag": null,
+    "last_modified": "Thu, 31 Aug 2045 20:36:38 GMT",
+    "checked_at": "2026-09-06T03:16:38.969Z"
+  }
+}
