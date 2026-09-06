@@ -3,7 +3,11 @@ const path = require('path');
 const crypto = require('crypto');
 const puppeteer = require('puppeteer');
 
-const ROOT_DIR = path.join(__dirname, '..');
+const ROOT_DIR =
+  path.join(
+    __dirname,
+    '..'
+  );
 
 const CONFIG_FILE =
   path.join(
@@ -20,14 +24,19 @@ const STATE_FILE =
     'newswire-api.json'
   );
 
+const PENDING_NOTIFICATIONS_FILE =
+  path.join(
+    ROOT_DIR,
+    'data',
+    'state',
+    'pending-notifications.json'
+  );
+
 const GRAPH_URL =
   'https://graph.rockstargames.com';
 
 const NEWSWIRE_URL =
   'https://www.rockstargames.com/newswire';
-
-const DISCORD_API_BASE =
-  'https://discord.com/api/v10';
 
 const DEFAULT_TIMEOUT =
   30000;
@@ -45,7 +54,10 @@ function readJson(file) {
   );
 }
 
-function writeJson(file, value) {
+function writeJson(
+  file,
+  value
+) {
   fs.mkdirSync(
     path.dirname(file),
     {
@@ -64,7 +76,9 @@ function writeJson(file, value) {
   );
 }
 
-function stableValue(value) {
+function stableValue(
+  value
+) {
   if (Array.isArray(value)) {
     return value.map(
       stableValue
@@ -73,12 +87,16 @@ function stableValue(value) {
 
   if (
     value &&
-    typeof value === 'object'
+    typeof value ===
+      'object'
   ) {
     return Object.keys(value)
       .sort()
       .reduce(
-        (result, key) => {
+        (
+          result,
+          key
+        ) => {
           result[key] =
             stableValue(
               value[key]
@@ -93,7 +111,9 @@ function stableValue(value) {
   return value;
 }
 
-function hashValue(value) {
+function hashValue(
+  value
+) {
   return crypto
     .createHash('sha256')
     .update(
@@ -105,14 +125,17 @@ function hashValue(value) {
     .digest('hex');
 }
 
-function formatArticle(article) {
+function formatArticle(
+  article
+) {
   const tags =
     Array.isArray(
       article?.primary_tags
     )
       ? article.primary_tags
           .map(
-            tag => tag?.name
+            tag =>
+              tag?.name
           )
           .filter(Boolean)
       : [];
@@ -259,7 +282,8 @@ async function requestNewswireList(
     JSON.stringify({
       persistedQuery: {
         version: 1,
-        sha256Hash: hash
+        sha256Hash:
+          hash
       }
     });
 
@@ -324,7 +348,9 @@ async function requestNewswireList(
 
     try {
       result =
-        JSON.parse(body);
+        JSON.parse(
+          body
+        );
     } catch {
       throw new Error(
         'Newswire GraphQL returned invalid JSON'
@@ -442,165 +468,47 @@ async function getNewswireOutput() {
   }
 }
 
-async function discordRequest(
-  token,
-  endpoint,
-  options = {}
-) {
-  const controller =
-    new AbortController();
-
-  const timer =
-    setTimeout(
-      () =>
-        controller.abort(),
-      DEFAULT_TIMEOUT
-    );
-
-  try {
-    const response =
-      await fetch(
-        `${DISCORD_API_BASE}${endpoint}`,
-        {
-          ...options,
-
-          headers: {
-            Authorization:
-              `Bot ${token}`,
-
-            'Content-Type':
-              'application/json',
-
-            ...(options.headers ||
-              {})
-          },
-
-          signal:
-            controller.signal
-        }
-      );
-
-    const body =
-      await response.text();
-
-    if (!response.ok) {
-      throw new Error(
-        `Discord API ${response.status}: ${body}`
-      );
-    }
-
-    return body
-      ? JSON.parse(body)
-      : null;
-  } finally {
-    clearTimeout(
-      timer
-    );
-  }
-}
-
-async function sendDiscordMessage(
-  token,
-  userId,
-  content
-) {
-  const channel =
-    await discordRequest(
-      token,
-      '/users/@me/channels',
-      {
-        method:
-          'POST',
-
-        body:
-          JSON.stringify({
-            recipient_id:
-              userId
-          })
-      }
-    );
-
-  if (
-    !channel?.id
-  ) {
-    throw new Error(
-      'Discord API did not return a DM channel id'
-    );
-  }
-
-  const text =
-    String(content);
-
-  for (
-    let offset = 0;
-    offset < text.length;
-    offset += 2000
-  ) {
-    await discordRequest(
-      token,
-      `/channels/${channel.id}/messages`,
-      {
-        method:
-          'POST',
-
-        body:
-          JSON.stringify({
-            content:
-              text.slice(
-                offset,
-                offset + 2000
-              )
-          })
-      }
-    );
-  }
-}
-
-function buildDiscordOutput(
+function buildNotification(
   output
 ) {
-  const lines = [
-    '**NewswireList API output changed**',
-    `Results: **${output.count}**`,
-    ''
-  ];
+  return {
+    event:
+      'newswire_api_changed',
 
-  for (
-    const [
-      index,
-      article
-    ]
-      of output.results.entries()
-  ) {
-    lines.push(
-      `### Result ${index + 1}`,
+    metadata: {
+      detected_at:
+        new Date().toISOString(),
 
-      `ID: \`${article.id ?? 'null'}\``,
+      count:
+        output.count,
 
-      `Title: ${article.title || 'null'}`,
+      results:
+        output.results
+    }
+  };
+}
 
-      `URL: ${article.url || 'null'}`,
-
-      `Created: ${article.created || 'null'}`,
-
-      `Tags: ${
-        article.tags.length
-          ? article.tags.join(', ')
-          : 'none'
-      }`,
-
-      `Image: ${
-        article.image ||
-        'null'
-      }`,
-
-      ''
+function appendPendingNotification(
+  notification
+) {
+  const existing =
+    readJson(
+      PENDING_NOTIFICATIONS_FILE
     );
-  }
 
-  return lines
-    .join('\n')
-    .trim();
+  const notifications =
+    Array.isArray(existing)
+      ? existing
+      : [];
+
+  notifications.push(
+    notification
+  );
+
+  writeJson(
+    PENDING_NOTIFICATIONS_FILE,
+    notifications
+  );
 }
 
 function loadState() {
@@ -645,23 +553,6 @@ async function main() {
     return;
   }
 
-  const token =
-    process.env
-      .DISCORD_BOT_TOKEN;
-
-  const userId =
-    process.env
-      .DISCORD_USER_ID;
-
-  if (
-    !token ||
-    !userId
-  ) {
-    throw new Error(
-      'DISCORD_BOT_TOKEN and DISCORD_USER_ID are required'
-    );
-  }
-
   console.log(
     '[NEWSWIRE-API] Checking NewswireList API...'
   );
@@ -703,15 +594,10 @@ async function main() {
     } -> ${outputHash}`
   );
 
-  const message =
-    buildDiscordOutput(
+  appendPendingNotification(
+    buildNotification(
       output
-    );
-
-  await sendDiscordMessage(
-    token,
-    userId,
-    message
+    )
   );
 
   writeJson(
@@ -735,7 +621,7 @@ async function main() {
   );
 
   console.log(
-    '[NEWSWIRE-API] Discord message sent and state saved.'
+    '[NEWSWIRE-API] Notification queued for notify.js and state saved.'
   );
 }
 
