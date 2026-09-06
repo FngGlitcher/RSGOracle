@@ -74,6 +74,16 @@ jobs:
       - name: Check Rockstar Newswire
         run: node src/newswire.js
 
+      - name: Send Discord notifications
+        if: success()
+        continue-on-error: true
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_USER_ID: ${{ secrets.DISCORD_USER_ID }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: node src/notify.js
+
       - name: Commit changes
         if: success()
         run: |
@@ -89,12 +99,3 @@ jobs:
             git pull --rebase origin main
             git push
           fi
-
-      - name: Send Discord notifications
-        if: success()
-        env:
-          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
-          DISCORD_USER_ID: ${{ secrets.DISCORD_USER_ID }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_REF_NAME: ${{ github.ref_name }}
-        run: node src/notify.js
