@@ -1002,6 +1002,24 @@ function createResolver(
       };
     }
 
+    const custom =
+      customIndex[normalized];
+
+    if (custom) {
+      return {
+        key: normalized,
+        value:
+          translateValue(
+            value,
+            custom
+          ),
+        resolved: true,
+        name: custom,
+        context: null,
+        method: 'custom'
+      };
+    }
+
     const override =
       overrides[normalized];
 
@@ -1216,24 +1234,6 @@ function createResolver(
         name: job,
         context: null,
         method: 'job'
-      };
-    }
-
-    const custom =
-      customIndex[normalized];
-
-    if (custom) {
-      return {
-        key: normalized,
-        value:
-          translateValue(
-            value,
-            custom
-          ),
-        resolved: true,
-        name: custom,
-        context: null,
-        method: 'custom'
       };
     }
 
