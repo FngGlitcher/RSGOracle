@@ -17,7 +17,7 @@
       },
       "status": "active",
       "last_status": 200,
-      "last_checked": "2026-09-06T00:21:48.547Z",
+      "last_checked": "2026-09-06T00:27:53.604Z",
       "last_modified": "Thu, 03 Sep 2026 08:43:56 GMT",
       "etag": "\"639240218360000000\"",
       "last_content_length": 18038,
@@ -41,7 +41,7 @@
       },
       "status": "active",
       "last_status": 200,
-      "last_checked": "2026-09-06T00:21:57.411Z",
+      "last_checked": "2026-09-06T00:28:02.184Z",
       "last_modified": "Thu, 03 Sep 2026 08:44:02 GMT",
       "etag": "\"639240218420000000\"",
       "last_content_length": 27972,
@@ -65,7 +65,7 @@
       },
       "status": "active",
       "last_status": 200,
-      "last_checked": "2026-09-06T00:22:04.122Z",
+      "last_checked": "2026-09-06T00:28:08.612Z",
       "last_modified": "Thu, 03 Sep 2026 08:44:07 GMT",
       "etag": "\"639240218470000000\"",
       "last_content_length": 18253,
@@ -89,7 +89,7 @@
       },
       "status": "active",
       "last_status": 200,
-      "last_checked": "2026-09-06T00:22:12.431Z",
+      "last_checked": "2026-09-06T00:28:17.270Z",
       "last_modified": "Thu, 03 Sep 2026 08:44:13 GMT",
       "etag": "\"639240218530000000\"",
       "last_content_length": 28170,
@@ -113,7 +113,7 @@
       },
       "status": "active",
       "last_status": 200,
-      "last_checked": "2026-09-06T00:22:18.693Z",
+      "last_checked": "2026-09-06T00:28:23.733Z",
       "last_modified": "Thu, 03 Sep 2026 08:44:18 GMT",
       "etag": "\"639240218580000000\"",
       "last_content_length": 18143,
@@ -137,7 +137,7 @@
       },
       "status": "active",
       "last_status": 200,
-      "last_checked": "2026-09-06T00:22:26.153Z",
+      "last_checked": "2026-09-06T00:28:31.296Z",
       "last_modified": "Thu, 03 Sep 2026 08:44:24 GMT",
       "etag": "\"639240218640000000\"",
       "last_content_length": 28034,
@@ -147,19 +147,19 @@
     "gta5/ps6": {
       "status": "unavailable",
       "last_status": 404,
-      "last_checked": "2026-09-06T00:22:26.760Z",
+      "last_checked": "2026-09-06T00:28:31.412Z",
       "last_error": "Endpoint unavailable for gta5/ps6: HTTP 404"
     },
     "gta5/ps3": {
       "status": "unavailable",
       "last_status": 200,
-      "last_checked": "2026-09-06T00:22:27.492Z",
+      "last_checked": "2026-09-06T00:28:31.510Z",
       "last_error": "Payload processing failed for gta5/ps3: Endpoint returned non-JSON data for gta5/ps3 (preview: �� a*�[�a�5k( � ��H�j\u0001յNwy��\u001d$��J\u0019b*�$W)�U���0�S(�3-H�h�f}�f�Lt���1���\\᰼,���1�'v��\u0000�\u0002\u0016�\u001c�!�p1mq�/���~�p\u001b*\u0013\u0016�t֋�\u0005lP�-y�3�)"
     },
     "gta5/xbox360": {
       "status": "unavailable",
       "last_status": 200,
-      "last_checked": "2026-09-06T00:22:28.169Z",
+      "last_checked": "2026-09-06T00:28:31.576Z",
       "last_error": "Payload processing failed for gta5/xbox360: Endpoint returned non-JSON data for gta5/xbox360 (preview: �� a*�[�a�5k( � ��H�j\u0001յNwy��\u001d$��J\u0019b*�$W)�U���0�S(�3-H�h�f}�f�Lt���1���\\᰼,���1�'v��\u0000�\u0002\u0016�\u001c�!�p1mq�/���~�p\u001b*\u0013\u0016�t֋�\u0005lP�-y�3�)"
     },
     "gta6/ps5": {
@@ -195,7 +195,7 @@
       "hash": "dd039358d0b5284cf945a4770e2a4d379fdb69aba5f6dc5c36b3ef0cea6920d4",
       "last_modified": "Thu, 13 Aug 2026 09:29:57 GMT",
       "content_length": 18432,
-      "last_checked": "2026-09-06T00:22:28.170Z",
+      "last_checked": "2026-09-06T00:28:31.576Z",
       "status": "ok",
       "last_error": null
     },
@@ -206,7 +206,7 @@
       "hash": "80082f1bd6eacef7a54278cb2101a93885b2d2a70bdc45a0a4410d2b330f2ee1",
       "last_modified": "Thu, 13 Aug 2026 09:30:56 GMT",
       "content_length": 20480,
-      "last_checked": "2026-09-06T00:22:28.520Z",
+      "last_checked": "2026-09-06T00:28:31.599Z",
       "status": "ok",
       "last_error": null
     },
@@ -217,7 +217,7 @@
       "hash": "df7c494e70ca09cd84d7c8fe518f9229905188b05c38d8e45f7d90c045d335d8",
       "last_modified": "Thu, 13 Aug 2026 09:30:11 GMT",
       "content_length": 18432,
-      "last_checked": "2026-09-06T00:22:28.865Z",
+      "last_checked": "2026-09-06T00:28:31.618Z",
       "status": "ok",
       "last_error": null
     },
@@ -228,7 +228,7 @@
       "hash": "4af005b7dd105ff606281dc6e6c78a49fa5a522407eb472cb6372b5fe1b8a4e8",
       "last_modified": "Thu, 13 Aug 2026 09:31:07 GMT",
       "content_length": 20480,
-      "last_checked": "2026-09-06T00:22:29.156Z",
+      "last_checked": "2026-09-06T00:28:31.628Z",
       "status": "ok",
       "last_error": null
     }
