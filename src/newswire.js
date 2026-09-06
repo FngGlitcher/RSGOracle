@@ -1,42 +1,42 @@
-const fs = require("fs");
-const path = require("path");
-const puppeteer = require("puppeteer");
+const fs = require('fs');
+const path = require('path');
+const puppeteer = require('puppeteer');
 
 const NEWSWIRE_URL =
-  "https://www.rockstargames.com/newswire";
+  'https://www.rockstargames.com/newswire';
 
 const ROOT_DIR =
-  path.resolve(__dirname, "..");
+  path.resolve(__dirname, '..');
 
 const CONFIG_FILE =
   path.join(
     ROOT_DIR,
-    "config",
-    "config.json"
+    'config',
+    'config.json'
   );
 
 const STATE_FILE =
   path.join(
     ROOT_DIR,
-    "data",
-    "state",
-    "newswire.json"
+    'data',
+    'state',
+    'newswire.json'
   );
 
 const NOTIFICATIONS_FILE =
   path.join(
     ROOT_DIR,
-    "data",
-    "state",
-    "notifications.json"
+    'data',
+    'state',
+    'notifications.json'
   );
 
 const PENDING_NOTIFICATIONS_FILE =
   path.join(
     ROOT_DIR,
-    "data",
-    "state",
-    "pending-notifications.json"
+    'data',
+    'state',
+    'pending-notifications.json'
   );
 
 function readJson(file) {
@@ -48,7 +48,7 @@ function readJson(file) {
     return JSON.parse(
       fs.readFileSync(
         file,
-        "utf8"
+        'utf8'
       )
     );
   } catch (error) {
@@ -74,8 +74,8 @@ function writeJson(file, data) {
       data,
       null,
       2
-    ) + "\n",
-    "utf8"
+    ) + '\n',
+    'utf8'
   );
 }
 
@@ -87,14 +87,9 @@ function normalizeUrl(value) {
   let url =
     String(value)
       .trim()
-      .replace(
-        /\\\//g,
-        "/"
-      );
+      .replace(/\\\//g, '/');
 
-  if (
-    url.startsWith("/")
-  ) {
+  if (url.startsWith('/')) {
     url =
       `https://www.rockstargames.com${url}`;
   }
@@ -105,15 +100,15 @@ function normalizeUrl(value) {
 
     if (
       parsed.hostname !==
-        "www.rockstargames.com" &&
+        'www.rockstargames.com' &&
       parsed.hostname !==
-        "rockstargames.com"
+        'rockstargames.com'
     ) {
       return null;
     }
 
-    parsed.hash = "";
-    parsed.search = "";
+    parsed.hash = '';
+    parsed.search = '';
 
     return parsed.toString();
   } catch {
@@ -121,7 +116,7 @@ function normalizeUrl(value) {
   }
 }
 
-function isArticleUrl(url) {
+function isNewswireArticleUrl(url) {
   return Boolean(
     url &&
       /rockstargames\.com\/(?:[a-z]{2}\/)?newswire\/article\//i.test(
@@ -130,494 +125,110 @@ function isArticleUrl(url) {
   );
 }
 
-function getArticleIdentity(url) {
-  const normalized =
-    normalizeUrl(url);
-
-  if (!normalized) {
-    return null;
-  }
-
-  const match =
-    normalized.match(
-      /\/newswire\/article\/([^/?#]+)/i
-    );
-
-  return match
-    ? match[1].toLowerCase()
-    : null;
-}
-
-function normalizeDate(value) {
+function cleanText(value) {
   if (!value) {
     return null;
   }
 
-  const date =
-    new Date(
-      String(value).trim()
-    );
-
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
-    return null;
-  }
-
-  return date.toISOString();
-}
-
-function cleanTitle(value) {
-  if (!value) {
-    return null;
-  }
-
-  const title =
+  const text =
     String(value)
-      .replace(
-        /&amp;/gi,
-        "&"
-      )
-      .replace(
-        /&quot;/gi,
-        '"'
-      )
-      .replace(
-        /&#39;/gi,
-        "'"
-      )
-      .replace(
-        /&apos;/gi,
-        "'"
-      )
-      .replace(
-        /&lt;/gi,
-        "<"
-      )
-      .replace(
-        /&gt;/gi,
-        ">"
-      )
-      .replace(
-        /\s+/g,
-        " "
-      )
+      .replace(/\s+/g, ' ')
       .trim();
 
-  if (
-    !title ||
-    /^access denied$/i.test(title)
-  ) {
+  return text || null;
+}
+
+function parseNewswireDate(value) {
+  if (!value) {
     return null;
   }
 
-  return title;
-}
+  const text =
+    String(value).trim();
 
-function extractArticleObjects(
-  value,
-  results,
-  seen
-) {
-  if (!value) {
-    return;
-  }
+  /*
+   * Rockstar currently exposes values such as:
+   *
+   * 9/3/26, 10:00 AM
+   */
 
-  if (
-    typeof value ===
-    "string"
-  ) {
-    return;
-  }
+  const match =
+    text.match(
+      /^(\d{1,2})\/(\d{1,2})\/(\d{2,4}),\s*(\d{1,2}):(\d{2})\s*(AM|PM)$/i
+    );
 
-  if (
-    Array.isArray(value)
-  ) {
-    for (
-      const item of
-        value
-    ) {
-      extractArticleObjects(
-        item,
-        results,
-        seen
-      );
+  if (match) {
+    let month =
+      Number(match[1]);
+
+    let day =
+      Number(match[2]);
+
+    let year =
+      Number(match[3]);
+
+    let hour =
+      Number(match[4]);
+
+    const minute =
+      Number(match[5]);
+
+    const period =
+      match[6].toUpperCase();
+
+    if (year < 100) {
+      year +=
+        year < 70
+          ? 2000
+          : 1900;
     }
-
-    return;
-  }
-
-  if (
-    typeof value !==
-    "object"
-  ) {
-    return;
-  }
-
-  const possibleUrls = [
-    value.url,
-    value.link,
-    value.href,
-    value.path,
-    value.slug
-  ];
-
-  let url = null;
-
-  for (
-    const candidate of
-      possibleUrls
-  ) {
-    const normalized =
-      normalizeUrl(
-        candidate
-      );
 
     if (
-      isArticleUrl(
-        normalized
-      )
+      period === 'PM' &&
+      hour !== 12
     ) {
-      url =
-        normalized;
-
-      break;
+      hour += 12;
     }
-  }
 
-  if (url) {
-    const title =
-      cleanTitle(
-        value.title ||
-        value.name ||
-        value.headline ||
-        value.label
-      );
+    if (
+      period === 'AM' &&
+      hour === 12
+    ) {
+      hour = 0;
+    }
 
     const date =
-      normalizeDate(
-        value.datePublished ||
-        value.publishedAt ||
-        value.published_at ||
-        value.publicationDate ||
-        value.publishDate ||
-        value.date ||
-        value.createdAt ||
-        value.created_at
+      new Date(
+        Date.UTC(
+          year,
+          month - 1,
+          day,
+          hour,
+          minute
+        )
       );
-
-    const updatedAt =
-      normalizeDate(
-        value.dateModified ||
-        value.updatedAt ||
-        value.updated_at ||
-        value.modifiedAt ||
-        value.modified_at ||
-        value.updated
-      );
-
-    const lastModified =
-      value.lastModified ||
-      value.last_modified ||
-      value.httpLastModified ||
-      null;
 
     if (
-      title &&
-      !seen.has(url)
+      !Number.isNaN(
+        date.getTime()
+      )
     ) {
-      seen.add(url);
-
-      results.push({
-        title,
-        url,
-        date,
-        updatedAt,
-        lastModified:
-          lastModified
-            ? String(
-                lastModified
-              ).trim()
-            : null
-      });
+      return date.toISOString();
     }
   }
 
-  for (
-    const [key, child] of
-      Object.entries(value)
-  ) {
-    if (
-      key ===
-        "extensions" ||
-      key ===
-        "headers"
-    ) {
-      continue;
-    }
-
-    extractArticleObjects(
-      child,
-      results,
-      seen
-    );
-  }
-}
-
-function extractMetadataFromPayload(
-  value,
-  targetIdentity,
-  result
-) {
-  if (!value) {
-    return;
-  }
+  const fallback =
+    new Date(text);
 
   if (
-    Array.isArray(value)
+    !Number.isNaN(
+      fallback.getTime()
+    )
   ) {
-    for (
-      const item of
-        value
-    ) {
-      extractMetadataFromPayload(
-        item,
-        targetIdentity,
-        result
-      );
-    }
-
-    return;
+    return fallback.toISOString();
   }
 
-  if (
-    typeof value !==
-    "object"
-  ) {
-    return;
-  }
-
-  const possibleUrls = [
-    value.url,
-    value.link,
-    value.href,
-    value.path,
-    value.slug
-  ];
-
-  let matchesArticle =
-    false;
-
-  for (
-    const candidate of
-      possibleUrls
-  ) {
-    const identity =
-      getArticleIdentity(
-        candidate
-      );
-
-    if (
-      identity &&
-      identity ===
-        targetIdentity
-    ) {
-      matchesArticle =
-        true;
-
-      break;
-    }
-  }
-
-  if (matchesArticle) {
-    const published =
-      normalizeDate(
-        value.datePublished ||
-        value.publishedAt ||
-        value.published_at ||
-        value.publicationDate ||
-        value.publishDate ||
-        value.date ||
-        value.createdAt ||
-        value.created_at ||
-        value.created
-      );
-
-    const modified =
-      normalizeDate(
-        value.dateModified ||
-        value.updatedAt ||
-        value.updated_at ||
-        value.modifiedAt ||
-        value.modified_at ||
-        value.updated
-      );
-
-    const lastModified =
-      value.lastModified ||
-      value.last_modified ||
-      value.httpLastModified ||
-      null;
-
-    if (
-      published
-    ) {
-      result.date =
-        published;
-    }
-
-    if (
-      modified
-    ) {
-      result.updatedAt =
-        modified;
-    }
-
-    if (
-      lastModified
-    ) {
-      result.lastModified =
-        String(
-          lastModified
-        ).trim();
-    }
-  }
-
-  for (
-    const child of
-      Object.values(value)
-  ) {
-    if (
-      child &&
-      typeof child ===
-        "object"
-    ) {
-      extractMetadataFromPayload(
-        child,
-        targetIdentity,
-        result
-      );
-    }
-  }
-}
-
-async function enrichArticleMetadata(
-  article,
-  graphqlPayloads,
-  graphqlLastModified
-) {
-  if (
-    !article ||
-    !article.url
-  ) {
-    return article;
-  }
-
-  const targetIdentity =
-    getArticleIdentity(
-      article.url
-    );
-
-  if (!targetIdentity) {
-    return article;
-  }
-
-  const metadata = {
-    date:
-      article.date ||
-      null,
-
-    updatedAt:
-      article.updatedAt ||
-      null,
-
-    lastModified:
-      article.lastModified ||
-      null
-  };
-
-  for (
-    const payload of
-      graphqlPayloads
-  ) {
-    extractMetadataFromPayload(
-      payload,
-      targetIdentity,
-      metadata
-    );
-  }
-
-  if (
-    !metadata.lastModified &&
-    graphqlLastModified
-  ) {
-    metadata.lastModified =
-      graphqlLastModified;
-  }
-
-  article.date =
-    metadata.date ||
-    article.date ||
-    null;
-
-  article.updatedAt =
-    metadata.updatedAt ||
-    article.updatedAt ||
-    null;
-
-  article.lastModified =
-    metadata.lastModified ||
-    article.lastModified ||
-    null;
-
-  console.log(
-    `[NEWSWIRE] Metadata: ${article.title}`
-  );
-
-  console.log(
-    `[NEWSWIRE] Published: ${article.date || "unknown"}`
-  );
-
-  console.log(
-    `[NEWSWIRE] Last-Modified header: ${article.lastModified || "unknown"}`
-  );
-
-  console.log(
-    `[NEWSWIRE] Updated: ${article.updatedAt || "unknown"}`
-  );
-
-  return article;
-}
-
-async function enrichArticles(
-  articles,
-  graphqlPayloads,
-  graphqlLastModified
-) {
-  if (
-    !articles.length
-  ) {
-    return articles;
-  }
-
-  console.log(
-    `[NEWSWIRE] Enriching metadata for ${articles.length} articles from captured GraphQL...`
-  );
-
-  for (
-    const article of
-      articles
-  ) {
-    await enrichArticleMetadata(
-      article,
-      graphqlPayloads,
-      graphqlLastModified
-    );
-  }
-
-  return articles;
+  return null;
 }
 
 async function launchBrowser() {
@@ -625,493 +236,233 @@ async function launchBrowser() {
     headless: true,
 
     args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu"
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu'
     ]
   });
 }
 
-async function fetchNewswire(
-  latestArticles
-) {
-  console.log(
-    "[NEWSWIRE] Checking Rockstar Newswire..."
-  );
+async function extractNewswireArticles(page) {
+  return page.evaluate(() => {
+    const links =
+      Array.from(
+        document.querySelectorAll(
+          'a[href]'
+        )
+      );
 
-  const browser =
-    await launchBrowser();
+    const articles = [];
+    const seen = new Set();
+
+    for (const link of links) {
+      const href =
+        link.href || '';
+
+      if (
+        !/rockstargames\.com\/(?:[a-z]{2}\/)?newswire\/article\//i.test(
+          href
+        )
+      ) {
+        continue;
+      }
+
+      let url;
+
+      try {
+        const parsed =
+          new URL(href);
+
+        parsed.hash = '';
+        parsed.search = '';
+
+        url =
+          parsed.toString();
+      } catch {
+        continue;
+      }
+
+      if (seen.has(url)) {
+        continue;
+      }
+
+      /*
+       * Walk up the DOM to find the
+       * article card containing the
+       * publication <time>.
+       */
+      let container =
+        link;
+
+      let time =
+        null;
+
+      for (
+        let depth = 0;
+        depth < 10 && container;
+        depth += 1
+      ) {
+        time =
+          container.querySelector(
+            'time[datetime]'
+          );
+
+        if (time) {
+          break;
+        }
+
+        container =
+          container.parentElement;
+      }
+
+      if (!time) {
+        continue;
+      }
+
+      const datetime =
+        time.getAttribute(
+          'datetime'
+        );
+
+      const visibleDate =
+        time.textContent;
+
+      /*
+       * Prefer the article title
+       * from the card rather than
+       * arbitrary text from the page.
+       */
+      let title =
+        link.getAttribute(
+          'aria-label'
+        );
+
+      if (!title) {
+        title =
+          link.textContent;
+      }
+
+      title =
+        String(title || '')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+      if (!title) {
+        continue;
+      }
+
+      seen.add(url);
+
+      articles.push({
+        url,
+        title,
+        datetime:
+          String(
+            datetime || ''
+          ).trim(),
+        visibleDate:
+          String(
+            visibleDate || ''
+          )
+            .replace(/\s+/g, ' ')
+            .trim()
+      });
+    }
+
+    return articles;
+  });
+}
+
+async function openNewswire(page) {
+  await page.goto(
+    NEWSWIRE_URL,
+    {
+      waitUntil:
+        'domcontentloaded',
+      timeout: 60000
+    }
+  ).catch(error => {
+    console.log(
+      `[NEWSWIRE] Navigation warning: ${error.message}`
+    );
+  });
+
+  await page.waitForNetworkIdle({
+    idleTime: 1500,
+    timeout: 30000
+  }).catch(() => {
+    console.log(
+      '[NEWSWIRE] Network did not become fully idle, continuing.'
+    );
+  });
+
+  await new Promise(resolve =>
+    setTimeout(
+      resolve,
+      2500
+    )
+  );
+}
+
+async function getArticleLastModified(
+  browser,
+  url
+) {
+  const page =
+    await browser.newPage();
 
   try {
-    const page =
-      await browser.newPage();
-
-    await page.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/151.0.0.0 Safari/537.36"
-    );
-
-    await page.setViewport({
-      width: 1440,
-      height: 900
-    });
-
-    await page.setExtraHTTPHeaders({
-      "accept-language":
-        "en-US,en;q=0.9"
-    });
-
-    const graphqlPayloads =
-      [];
-
-    const graphqlUrls =
-      new Set();
-
-    let graphqlLastModified =
-      null;
-
-    const pendingGraphqlReads =
-      new Set();
-
-    const responseHandler =
-      response => {
-        const promise =
-          (async () => {
-            try {
-              const url =
-                response.url();
-
-              if (
-                !/graph\.rockstargames\.com/i.test(
-                  url
-                )
-              ) {
-                return;
-              }
-
-              graphqlUrls.add(
-                url
-              );
-
-              const headers =
-                response.headers();
-
-              if (
-                !graphqlLastModified &&
-                headers[
-                  "last-modified"
-                ]
-              ) {
-                graphqlLastModified =
-                  String(
-                    headers[
-                      "last-modified"
-                    ]
-                  ).trim();
-              }
-
-              const contentType =
-                String(
-                  headers[
-                    "content-type"
-                  ] || ""
-                ).toLowerCase();
-
-              if (
-                !contentType.includes(
-                  "json"
-                )
-              ) {
-                return;
-              }
-
-              let text = "";
-
-              try {
-                text =
-                  await response.text();
-              } catch {
-                return;
-              }
-
-              if (!text) {
-                return;
-              }
-
-              try {
-                const payload =
-                  JSON.parse(
-                    text
-                  );
-
-                graphqlPayloads.push(
-                  payload
-                );
-              } catch {
-                // Ignore invalid GraphQL JSON.
-              }
-            } catch {
-              // Ignore destroyed/aborted responses.
-            }
-          })();
-
-        pendingGraphqlReads.add(
-          promise
-        );
-
-        promise.finally(
-          () => {
-            pendingGraphqlReads.delete(
-              promise
-            );
-          }
-        );
-      };
-
-    page.on(
-      "response",
-      responseHandler
-    );
-
-    try {
+    const response =
       await page.goto(
-        NEWSWIRE_URL,
+        url,
         {
           waitUntil:
-            "domcontentloaded",
-          timeout: 60000
+            'domcontentloaded',
+          timeout: 30000
         }
-      );
-    } catch (error) {
-      console.log(
-        `[NEWSWIRE] Navigation warning: ${error.message}`
-      );
-    }
-
-    try {
-      await page.waitForNetworkIdle({
-        idleTime: 1500,
-        timeout: 30000
-      });
-    } catch {
-      console.log(
-        "[NEWSWIRE] Network did not become fully idle, continuing."
-      );
-    }
-
-    await new Promise(
-      resolve =>
-        setTimeout(
-          resolve,
-          3000
-        )
-    );
-
-    if (
-      pendingGraphqlReads.size
-    ) {
-      await Promise.allSettled(
-        Array.from(
-          pendingGraphqlReads
-        )
-      );
-    }
-
-    page.off(
-      "response",
-      responseHandler
-    );
-
-    console.log(
-      `[NEWSWIRE] GraphQL responses detected: ${graphqlPayloads.length}`
-    );
-
-    console.log(
-      `[NEWSWIRE] GraphQL endpoints detected: ${graphqlUrls.size}`
-    );
-
-    const graphqlArticles =
-      [];
-
-    const graphqlSeen =
-      new Set();
-
-    for (
-      const payload of
-        graphqlPayloads
-    ) {
-      extractArticleObjects(
-        payload,
-        graphqlArticles,
-        graphqlSeen
-      );
-    }
-
-    console.log(
-      `[NEWSWIRE] Articles recovered from GraphQL: ${graphqlArticles.length}`
-    );
-
-    let articles =
-      graphqlArticles;
-
-    if (
-      !articles.length
-    ) {
-      const domArticles =
-        await page.evaluate(
-          () => {
-            const anchors =
-              Array.from(
-                document.querySelectorAll(
-                  "a[href]"
-                )
-              );
-
-            const output =
-              [];
-
-            const seen =
-              new Set();
-
-            for (
-              const anchor of
-                anchors
-            ) {
-              const href =
-                anchor.href ||
-                "";
-
-              if (
-                !/rockstargames\.com\/(?:[a-z]{2}\/)?newswire\/article\//i.test(
-                  href
-                )
-              ) {
-                continue;
-              }
-
-              try {
-                const parsed =
-                  new URL(
-                    href
-                  );
-
-                parsed.hash =
-                  "";
-
-                parsed.search =
-                  "";
-
-                const url =
-                  parsed.toString();
-
-                if (
-                  seen.has(url)
-                ) {
-                  continue;
-                }
-
-                seen.add(url);
-
-                let container =
-                  anchor;
-
-                for (
-                  let i = 0;
-                  i < 6 &&
-                  container;
-                  i++
-                ) {
-                  const text =
-                    (
-                      container.textContent ||
-                      ""
-                    )
-                      .replace(
-                        /\s+/g,
-                        " "
-                      )
-                      .trim();
-
-                  if (
-                    text.length >
-                      20 &&
-                    text.length <
-                      1000
-                  ) {
-                    break;
-                  }
-
-                  container =
-                    container.parentElement;
-                }
-
-                const text =
-                  (
-                    container?.textContent ||
-                    anchor.textContent ||
-                    ""
-                  )
-                    .replace(
-                      /\s+/g,
-                      " "
-                    )
-                    .trim();
-
-                const title =
-                  (
-                    anchor.textContent ||
-                    anchor.getAttribute(
-                      "aria-label"
-                    ) ||
-                    ""
-                  )
-                    .replace(
-                      /\s+/g,
-                      " "
-                    )
-                    .trim();
-
-                const dateMatch =
-                  text.match(
-                    /\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+20\d{2}\b/i
-                  );
-
-                output.push({
-                  url,
-                  title:
-                    title || null,
-                  text,
-                  dateText:
-                    dateMatch
-                      ? dateMatch[0]
-                      : null
-                });
-              } catch {
-                // Ignore invalid links.
-              }
-            }
-
-            return output;
-          }
+      ).catch(error => {
+        console.log(
+          `[NEWSWIRE] Article request warning: ${error.message}`
         );
 
-      articles =
-        domArticles
-          .map(
-            article => ({
-              title:
-                cleanTitle(
-                  article.title
-                ),
+        return null;
+      });
 
-              url:
-                normalizeUrl(
-                  article.url
-                ),
-
-              date:
-                normalizeDate(
-                  article.dateText
-                ),
-
-              updatedAt:
-                null,
-
-              lastModified:
-                null
-            })
-          )
-          .filter(
-            article =>
-              article.title &&
-              isArticleUrl(
-                article.url
-              )
-          );
+    if (!response) {
+      return null;
     }
 
-    const unique =
-      [];
+    const headers =
+      response.headers();
 
-    const seen =
-      new Set();
-
-    for (
-      const article of
-        articles
-    ) {
-      if (
-        !article ||
-        !article.url ||
-        !isArticleUrl(
-          article.url
-        ) ||
-        seen.has(
-          article.url
-        )
-      ) {
-        continue;
-      }
-
-      if (
-        !article.title ||
-        /^access denied$/i.test(
-          article.title
-        )
-      ) {
-        continue;
-      }
-
-      seen.add(
-        article.url
-      );
-
-      unique.push(
-        article
-      );
-    }
-
-    console.log(
-      `[NEWSWIRE] Article links detected: ${unique.length}`
+    /*
+     * IMPORTANT:
+     *
+     * This is the raw HTTP Last-Modified
+     * header from the ARTICLE response.
+     *
+     * We do not parse it.
+     * We do not convert it.
+     * We do not replace it with
+     * the publication date.
+     */
+    return (
+      headers['last-modified'] ||
+      null
     );
-
-    if (
-      !unique.length
-    ) {
-      throw new Error(
-        "No valid Newswire articles found."
-      );
-    }
-
-    const candidates =
-      unique.slice(
-        1,
-        latestArticles + 1
-      );
-
-    console.log(
-      `[NEWSWIRE] Ignoring first featured result, checking ${candidates.length} latest articles.`
-    );
-
-    await enrichArticles(
-      candidates,
-      graphqlPayloads,
-      graphqlLastModified
-    );
-
-    return candidates;
   } finally {
-    await browser.close();
+    await page.close();
   }
 }
 
-function normalizeState(
-  state
-) {
+function loadState() {
+  const state =
+    readJson(STATE_FILE);
+
   if (
     !state ||
-    typeof state !==
-      "object"
+    typeof state !== 'object'
   ) {
     return {
       articles: [],
@@ -1136,171 +487,72 @@ function normalizeState(
   };
 }
 
-function loadNotifications(
+function loadNotificationArray(
   file
 ) {
-  const data =
+  const value =
     readJson(file);
 
-  return Array.isArray(data)
-    ? data
+  return Array.isArray(value)
+    ? value
     : [];
 }
 
-function findExisting(
-  state,
-  url
+function appendNotifications(
+  notifications
 ) {
-  return (
-    state.articles.find(
-      article =>
-        article &&
-        article.url === url
-    ) || null
-  );
-}
+  if (!notifications.length) {
+    return;
+  }
 
-function mergeArticle(
-  state,
-  article
-) {
   const existing =
-    findExisting(
-      state,
-      article.url
+    loadNotificationArray(
+      NOTIFICATIONS_FILE
     );
 
-  if (!existing) {
-    state.articles.push({
-      title:
-        article.title ||
-        "Newswire",
-
-      url:
-        article.url,
-
-      date:
-        article.date ||
-        null,
-
-      last_modified:
-        article.lastModified ||
-        null,
-
-      updated_at:
-        article.updatedAt ||
-        null
-    });
-
-    return true;
-  }
-
-  let changed =
-    false;
-
-  if (
-    article.title &&
-    existing.title !==
-      article.title
-  ) {
-    existing.title =
-      article.title;
-
-    changed = true;
-  }
-
-  if (
-    article.date &&
-    existing.date !==
-      article.date
-  ) {
-    existing.date =
-      article.date;
-
-    changed = true;
-  }
-
-  if (
-    article.lastModified &&
-    existing.last_modified !==
-      article.lastModified
-  ) {
-    existing.last_modified =
-      article.lastModified;
-
-    changed = true;
-  }
-
-  if (
-    article.updatedAt &&
-    existing.updated_at !==
-      article.updatedAt
-  ) {
-    existing.updated_at =
-      article.updatedAt;
-
-    changed = true;
-  }
-
-  return changed;
-}
-
-function migrateOldState(
-  rawState
-) {
-  if (
-    rawState &&
-    typeof rawState ===
-      "object" &&
-    Array.isArray(
-      rawState.articles
-    )
-  ) {
-    return normalizeState(
-      rawState
-    );
-  }
-
-  return {
-    articles: [],
-    known_urls: []
-  };
+  writeJson(
+    NOTIFICATIONS_FILE,
+    [
+      ...existing,
+      ...notifications
+    ]
+  );
 }
 
 function appendPendingNotifications(
   notifications
 ) {
-  if (
-    !notifications.length
-  ) {
+  if (!notifications.length) {
     return;
   }
 
   const pending =
-    loadNotifications(
+    loadNotificationArray(
       PENDING_NOTIFICATIONS_FILE
     );
 
-  const existingKeys =
+  const keys =
     new Set(
-      pending
-        .filter(Boolean)
-        .map(
-          event =>
-            `${event.type || ""}|${event.url || ""}|${event.detected_at || ""}`
-        )
+      pending.map(event =>
+        [
+          event.type || '',
+          event.url || '',
+          event.detected_at || ''
+        ].join('|')
+      )
     );
 
   for (
-    const notification of
-      notifications
+    const notification of notifications
   ) {
     const key =
-      `${notification.type || ""}|${notification.url || ""}|${notification.detected_at || ""}`;
+      [
+        notification.type || '',
+        notification.url || '',
+        notification.detected_at || ''
+      ].join('|');
 
-    if (
-      existingKeys.has(key)
-    ) {
+    if (keys.has(key)) {
       continue;
     }
 
@@ -1308,80 +560,202 @@ function appendPendingNotifications(
       notification
     );
 
-    existingKeys.add(
-      key
-    );
+    keys.add(key);
   }
 
   writeJson(
     PENDING_NOTIFICATIONS_FILE,
     pending
   );
+}
 
-  console.log(
-    `[NEWSWIRE] Pending notifications updated: ${pending.length}`
-  );
+function updateArticleState(
+  state,
+  article
+) {
+  const existing =
+    state.articles.find(
+      item =>
+        item &&
+        item.url === article.url
+    );
+
+  if (!existing) {
+    state.articles.push({
+      title:
+        article.title,
+
+      url:
+        article.url,
+
+      date:
+        article.date || null,
+
+      last_modified:
+        article.lastModified || null
+    });
+
+    return;
+  }
+
+  existing.title =
+    article.title ||
+    existing.title ||
+    null;
+
+  existing.date =
+    article.date ||
+    existing.date ||
+    null;
+
+  existing.last_modified =
+    article.lastModified ||
+    existing.last_modified ||
+    null;
 }
 
 async function main() {
+  console.log(
+    '[NEWSWIRE] Checking Rockstar Newswire...'
+  );
+
+  const config =
+    readJson(CONFIG_FILE) || {};
+
+  const configuredLimit =
+    Number(
+      config?.newswire?.latest_articles
+    );
+
+  /*
+   * Newswire is intentionally limited
+   * to the 3 latest posted articles.
+   */
+  const limit =
+    Number.isInteger(
+      configuredLimit
+    ) &&
+    configuredLimit > 0
+      ? configuredLimit
+      : 3;
+
+  const state =
+    loadState();
+
+  const browser =
+    await launchBrowser();
+
   try {
-    const config =
-      readJson(
-        CONFIG_FILE
-      ) || {};
+    const page =
+      await browser.newPage();
 
-    const configuredLimit =
-      Number(
-        config?.newswire
-          ?.latest_articles
+    await page.setUserAgent(
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36'
+    );
+
+    await page.setViewport({
+      width: 1440,
+      height: 900
+    });
+
+    await page.setExtraHTTPHeaders({
+      'accept-language':
+        'en-US,en;q=0.9'
+    });
+
+    await openNewswire(
+      page
+    );
+
+    const allArticles =
+      await extractNewswireArticles(
+        page
       );
 
+    console.log(
+      `[NEWSWIRE] Article links detected: ${allArticles.length}`
+    );
+
+    if (!allArticles.length) {
+      throw new Error(
+        'No Newswire articles detected.'
+      );
+    }
+
+    /*
+     * Rockstar puts the featured/pinned
+     * article first.
+     *
+     * The actual latest posts therefore
+     * start at index 1.
+     */
     const latestArticles =
-      Number.isInteger(
-        configuredLimit
-      ) &&
-      configuredLimit > 0
-        ? configuredLimit
-        : 5;
-
-    const rawState =
-      readJson(
-        STATE_FILE
+      allArticles.slice(
+        1,
+        limit + 1
       );
 
-    const previousState =
-      migrateOldState(
-        rawState
+    console.log(
+      `[NEWSWIRE] Latest ${latestArticles.length} articles:`
+    );
+
+    for (
+      let index = 0;
+      index < latestArticles.length;
+      index += 1
+    ) {
+      const article =
+        latestArticles[index];
+
+      console.log(
+        `${index + 1}. ${article.title}`
       );
 
-    const currentArticles =
-      await fetchNewswire(
-        latestArticles
+      console.log(
+        `   Posted: ${article.visibleDate || article.datetime || 'unknown'}`
       );
+    }
 
-    if (
-      !currentArticles.length
+    /*
+     * Get the raw HTTP Last-Modified
+     * header from each article itself.
+     */
+    for (
+      const article of latestArticles
     ) {
       console.log(
-        "[NEWSWIRE] No Newswire articles detected."
+        `[NEWSWIRE] Reading article header: ${article.url}`
       );
 
-      return;
+      article.date =
+        parseNewswireDate(
+          article.datetime
+        );
+
+      article.lastModified =
+        await getArticleLastModified(
+          browser,
+          article.url
+        );
+
+      console.log(
+        `[NEWSWIRE] Posted: ${article.date || 'unknown'}`
+      );
+
+      console.log(
+        `[NEWSWIRE] Last-Modified: ${article.lastModified || 'unknown'}`
+      );
     }
 
     const knownUrls =
       new Set(
-        previousState.known_urls
+        state.known_urls
       );
 
     for (
-      const article of
-        previousState.articles
+      const article of state.articles
     ) {
-      if (
-        article &&
-        article.url
-      ) {
+      if (article?.url) {
         knownUrls.add(
           article.url
         );
@@ -1389,59 +763,26 @@ async function main() {
     }
 
     const newArticles =
-      currentArticles.filter(
+      latestArticles.filter(
         article =>
-          article &&
           article.url &&
           !knownUrls.has(
             article.url
           )
       );
 
-    const state = {
-      articles: [
-        ...previousState.articles
-      ],
+    console.log(
+      `[NEWSWIRE] New articles detected: ${newArticles.length}`
+    );
 
-      known_urls: [
-        ...previousState.known_urls
-      ]
-    };
+    const detectedAt =
+      new Date().toISOString();
 
-    let stateChanged =
-      false;
-
-    for (
-      const article of
-        currentArticles
-    ) {
-      if (
-        mergeArticle(
-          state,
-          article
-        )
-      ) {
-        stateChanged =
-          true;
-      }
-    }
-
-    if (
-      newArticles.length
-    ) {
-      const notifications =
-        [];
-
-      const detectedAt =
-        new Date().toISOString();
-
-      for (
-        const article of
-          newArticles
-      ) {
-        const notification = {
+    const notifications =
+      newArticles.map(
+        article => ({
           type:
-            "newswire_new_post",
+            'newswire_new_post',
 
           title:
             article.title,
@@ -1450,61 +791,41 @@ async function main() {
             article.url,
 
           date:
-            article.date ||
-            null,
+            article.date || null,
 
           last_modified:
             article.lastModified ||
             null,
 
-          updated_at:
-            article.updatedAt ||
-            null,
-
           detected_at:
             detectedAt
-        };
+        })
+      );
 
-        notifications.push(
-          notification
-        );
+    for (
+      const article of latestArticles
+    ) {
+      updateArticleState(
+        state,
+        article
+      );
 
-        if (
-          !state.known_urls.includes(
-            article.url
-          )
-        ) {
-          state.known_urls.push(
-            article.url
-          );
-        }
-
-        console.log(
-          `[NEWSWIRE] New article detected: ${article.title}`
+      if (
+        !state.known_urls.includes(
+          article.url
+        )
+      ) {
+        state.known_urls.push(
+          article.url
         );
       }
-
-      const existingNotifications =
-        loadNotifications(
-          NOTIFICATIONS_FILE
-        );
-
-      writeJson(
-        NOTIFICATIONS_FILE,
-        [
-          ...existingNotifications,
-          ...notifications
-        ]
-      );
-
-      appendPendingNotifications(
-        notifications
-      );
-
-      stateChanged =
-        true;
     }
 
+    /*
+     * Keep the state small while
+     * retaining enough history to
+     * prevent duplicate notifications.
+     */
     state.articles =
       state.articles
         .filter(
@@ -1512,9 +833,7 @@ async function main() {
             article &&
             article.url
         )
-        .slice(
-          -25
-        );
+        .slice(-25);
 
     state.known_urls =
       Array.from(
@@ -1523,38 +842,39 @@ async function main() {
             Boolean
           )
         )
-      ).slice(
-        -25
-      );
+      ).slice(-25);
 
     writeJson(
       STATE_FILE,
       state
     );
 
-    if (
-      stateChanged ||
-      newArticles.length
-    ) {
+    if (notifications.length) {
+      appendNotifications(
+        notifications
+      );
+
+      appendPendingNotifications(
+        notifications
+      );
+
       console.log(
-        "[NEWSWIRE] State updated."
+        `[NEWSWIRE] Notifications generated: ${notifications.length}`
       );
     } else {
       console.log(
-        "[NEWSWIRE] No state changes."
+        '[NEWSWIRE] No new articles.'
       );
     }
-
-    console.log(
-      `[NEWSWIRE] New articles: ${newArticles.length}`
-    );
-  } catch (error) {
-    console.error(
-      `[NEWSWIRE] Failed: ${error.message}`
-    );
-
-    process.exitCode = 1;
+  } finally {
+    await browser.close();
   }
 }
 
-main();
+main().catch(error => {
+  console.error(
+    `[NEWSWIRE] Failed: ${error.message}`
+  );
+
+  process.exitCode = 1;
+});
