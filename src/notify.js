@@ -67,6 +67,106 @@ function formatNewswireApiChanged(
     .trim();
 }
 
+function formatGtaPlusUpdated(
+  metadata
+) {
+  const name =
+    metadata?.name ||
+    'GTA+ Website';
+
+  const detectedAt =
+    metadata?.detected_at ||
+    new Date().toISOString();
+
+  const lastModified =
+    metadata?.last_modified ||
+    'unknown';
+
+  return [
+    `**${name} update detected at ${formatDetectedTime(detectedAt)}**`,
+    `Last modified ${lastModified}`
+  ].join('\n');
+}
+
+function formatViTrackerChanged(
+  metadata
+) {
+  const type =
+    metadata?.type ||
+    'first_seen';
+
+  const url =
+    metadata?.url ||
+    '';
+
+  const name =
+    metadata?.name ||
+    'GTA VI';
+
+  const detectedAt =
+    metadata?.detected_at ||
+    new Date().toISOString();
+
+  const detectedTime =
+    formatDetectedTime(
+      detectedAt
+    );
+
+  if (
+    type ===
+    'first_seen'
+  ) {
+    return [
+      `**VI TRACKER DETECTED AT ${detectedTime}**`,
+      `First seen **${name}**`,
+      url
+    ].join('\n');
+  }
+
+  if (
+    type ===
+    'updated'
+  ) {
+    return [
+      `**VI TRACKER UPDATE DETECTED AT ${detectedTime}**`,
+      `Updated **${name}**`,
+      url
+    ].join('\n');
+  }
+
+  return [
+    `**VI TRACKER DETECTED AT ${detectedTime}**`,
+    `**${name}**`,
+    url
+  ].join('\n');
+}
+
+function formatDetectedTime(
+  value
+) {
+  const date =
+    new Date(
+      value
+    );
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return String(
+      value
+    );
+  }
+
+  return date
+    .toISOString()
+    .slice(
+      11,
+      19
+    );
+}
+
 async function main() {
   const config =
     loadConfig();
@@ -113,7 +213,10 @@ async function main() {
       config.discord.user_id_env
     ];
 
-  if (!token || !userId) {
+  if (
+    !token ||
+    !userId
+  ) {
     console.log(
       'Discord notification skipped: missing secret/user id.'
     );
@@ -121,7 +224,9 @@ async function main() {
     return;
   }
 
-  for (const event of events) {
+  for (
+    const event of events
+  ) {
     /*
      * Notifications created by different modules may use
      * either "event" or "type".
@@ -362,6 +467,32 @@ async function main() {
     ) {
       content =
         formatNewswireApiChanged(
+          event.metadata
+        );
+    }
+
+    /*
+     * GTA+ tracker
+     */
+    else if (
+      eventType ===
+      'gta_plus_updated'
+    ) {
+      content =
+        formatGtaPlusUpdated(
+          event.metadata
+        );
+    }
+
+    /*
+     * GTA VI tracker
+     */
+    else if (
+      eventType ===
+      'vi_tracker_changed'
+    ) {
+      content =
+        formatViTrackerChanged(
           event.metadata
         );
     }
