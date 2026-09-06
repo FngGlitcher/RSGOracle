@@ -337,6 +337,46 @@ function resolveContentLists(raw) {
   };
 }
 
+function applyCustomDictionary(tunables) {
+  const file = path.join(
+    ROOT,
+    'data',
+    'dictionaries',
+    'dictionary-custom.json'
+  );
+
+  if (!fs.existsSync(file)) {
+    return tunables;
+  }
+
+  let dictionary;
+
+  try {
+    dictionary = JSON.parse(
+      fs.readFileSync(file, 'utf8')
+    );
+  } catch {
+    return tunables;
+  }
+
+  const output = {};
+
+  for (const [key, value] of Object.entries(tunables || {})) {
+    const customName = dictionary[key];
+
+    if (
+      typeof customName === 'string' &&
+      customName.trim()
+    ) {
+      output[customName.trim()] = value;
+    } else {
+      output[key] = value;
+    }
+  }
+
+  return output;
+}
+
 async function resolveData(
   raw,
   config,
@@ -368,9 +408,14 @@ async function resolveData(
       resolvedData.tunables &&
       typeof resolvedData.tunables === 'object'
     ) {
-      const resolvedTunables =
+      let resolvedTunables =
         resolver.resolve(
           resolvedData.tunables
+        );
+
+      resolvedTunables =
+        applyCustomDictionary(
+          resolvedTunables
         );
 
       resolvedData = {
