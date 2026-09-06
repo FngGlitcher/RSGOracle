@@ -1,515 +1,516 @@
 const fs = require('fs');
 const path = require('path');
 
-const ROOT_DIR =
-  path.join(
-    __dirname,
-    '..'
-  );
+const {
+  loadConfig,
+  ROOT
+} = require('./lib/config');
 
-const CONFIG_FILE =
-  path.join(
-    ROOT_DIR,
-    'config',
-    'config.json'
-  );
+const {
+  sendDM,
+  formatUpdate,
+  formatFirstSeen,
+  formatRecovery,
+  formatBackgroundNewBuild,
+  formatBackgroundFirstSeen,
+  formatBackgroundUpdated,
+  formatNewswireArticle
+} = require('./lib/discord');
 
-const STATE_FILE =
-  path.join(
-    ROOT_DIR,
-    'data',
-    'state',
-    'vi-tracker.json'
-  );
-
-const PENDING_NOTIFICATIONS_FILE =
-  path.join(
-    ROOT_DIR,
-    'data',
-    'state',
-    'pending-notifications.json'
-  );
-
-const DEFAULT_TIMEOUT =
-  30000;
-
-const TRACKED_URLS = [
-  {
-    base:
-      'https://www.rockstargames.com',
-    paths: [
-      '/VI',
-      '/VI/media',
-      '/VI/media/videos',
-      '/VI/media/screenshots',
-      '/VI/media/artwork-wallpapers',
-      '/VI/pc',
-      '/VI/online',
-      '/VI/gta-online',
-      '/VI/buy',
-      '/VI/preorder',
-      '/VI/pre-order',
-      '/VI/pre-load',
-      '/VI/preload',
-      '/VI/leonida',
-      '/VI/collectors-edition',
-      '/VI/collectors',
-      '/VI/editions',
-      '/VI/special-edition',
-      '/VI/trailer-3',
-      '/VI/companion',
-      '/VI/soundtrack',
-      '/VI/system-requirements',
-      '/VI/world',
-      '/VI/characters',
-      '/VI/vice-city'
-    ]
-  },
-  {
-    base:
-      'https://media.rockstargames.com',
-    paths: [
-      '/VI/downloads/videos/GTAVI_Videos.zip',
-      '/VI/downloads/screenshots/GTAVI_Screenshots.zip'
-    ]
-  }
-];
-
-function readJson(file) {
-  if (!fs.existsSync(file)) {
-    return null;
-  }
-
-  return JSON.parse(
-    fs.readFileSync(
-      file,
-      'utf8'
+function formatNewswireApiChanged(
+  metadata
+) {
+  const results =
+    Array.isArray(
+      metadata?.results
     )
-  );
-}
-
-function writeJson(
-  file,
-  value
-) {
-  fs.mkdirSync(
-    path.dirname(file),
-    {
-      recursive: true
-    }
-  );
-
-  fs.writeFileSync(
-    file,
-    JSON.stringify(
-      value,
-      null,
-      2
-    ) + '\n',
-    'utf8'
-  );
-}
-
-function loadState() {
-  const state =
-    readJson(
-      STATE_FILE
-    );
-
-  if (
-    !state ||
-    typeof state !==
-      'object'
-  ) {
-    return {
-      urls: {},
-      updated_at: null
-    };
-  }
-
-  if (
-    !state.urls ||
-    typeof state.urls !==
-      'object'
-  ) {
-    state.urls = {};
-  }
-
-  return state;
-}
-
-function appendPendingNotification(
-  notification
-) {
-  const existing =
-    readJson(
-      PENDING_NOTIFICATIONS_FILE
-    );
-
-  const notifications =
-    Array.isArray(existing)
-      ? existing
+      ? metadata.results
       : [];
 
-  notifications.push(
-    notification
-  );
+  const lines = [
+    '**NewswireList API output changed**',
+    `Results: **${
+      metadata?.count ??
+      results.length
+    }**`,
+    ''
+  ];
 
-  writeJson(
-    PENDING_NOTIFICATIONS_FILE,
-    notifications
-  );
-}
-
-function buildUrl(
-  base,
-  trackedPath
-) {
-  return new URL(
-    trackedPath,
-    base
-  ).href;
-}
-
-function getDisplayName(
-  trackedPath
-) {
-  const cleanPath =
-    trackedPath
-      .replace(
-        /^\/+/,
-        ''
-      )
-      .replace(
-        /\/+$/,
-        ''
-      );
-
-  const parts =
-    cleanPath.split(
-      '/'
-    );
-
-  return (
-    parts[
-      parts.length - 1
-    ] ||
-    trackedPath
-  );
-}
-
-async function checkUrl(
-  url
-) {
-  const controller =
-    new AbortController();
-
-  const timer =
-    setTimeout(
-      () =>
-        controller.abort(),
-      DEFAULT_TIMEOUT
-    );
-
-  try {
-    let response;
-
-    try {
-      response =
-        await fetch(
-          url,
-          {
-            method:
-              'HEAD',
-
-            redirect:
-              'follow',
-
-            signal:
-              controller.signal
-          }
-        );
-    } catch (error) {
-      return {
-        exists:
-          false,
-
-        status:
-          null,
-
-        etag:
-          null,
-
-        error:
-          error.message
-      };
-    }
-
-    /*
-     * Some servers do not support HEAD correctly.
-     * If HEAD returns 405/501, retry with GET while
-     * asking only for headers and immediately aborting
-     * after the response headers are received.
-     */
-    if (
-      response.status === 405 ||
-      response.status === 501
-    ) {
-      try {
-        const getController =
-          new AbortController();
-
-        const getResponse =
-          await fetch(
-            url,
-            {
-              method:
-                'GET',
-
-              redirect:
-                'follow',
-
-              signal:
-                getController.signal
-            }
-          );
-
-        response =
-          getResponse;
-
-        getController.abort();
-      } catch (error) {
-        return {
-          exists:
-            false,
-
-          status:
-            null,
-
-          etag:
-            null,
-
-          error:
-            error.message
-        };
-      }
-    }
-
-    const etag =
-      response.headers.get(
-        'etag'
-      );
-
-    return {
-      exists:
-        response.status === 200,
-
-      status:
-        response.status,
-
-      etag:
-        etag || null,
-
-      error:
-        null
-    };
-  } finally {
-    clearTimeout(
-      timer
+  for (
+    const [
+      index,
+      article
+    ] of results.entries()
+  ) {
+    lines.push(
+      `### Result ${index + 1}`,
+      `ID: \`${article?.id ?? 'null'}\``,
+      `Title: ${article?.title || 'null'}`,
+      `URL: ${article?.url || 'null'}`,
+      `Created: ${article?.created || 'null'}`,
+      `Tags: ${
+        Array.isArray(article?.tags) &&
+        article.tags.length
+          ? article.tags.join(', ')
+          : 'none'
+      }`,
+      `Image: ${
+        article?.image ||
+        'null'
+      }`,
+      ''
     );
   }
+
+  return lines
+    .join('\n')
+    .trim();
 }
 
-function buildNotification(
-  type,
-  url,
-  trackedPath
+function formatGtaPlusUpdated(
+  metadata
 ) {
-  return {
-    event:
-      'vi_tracker_changed',
+  const name =
+    metadata?.name ||
+    'GTA+ Website';
 
-    metadata: {
-      type,
+  const detectedAt =
+    metadata?.detected_at
+      ? new Date(
+          metadata.detected_at
+        )
+      : new Date();
 
-      detected_at:
-        new Date().toISOString(),
+  const detectedTime =
+    detectedAt.toLocaleTimeString(
+      'en-GB',
+      {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+        timeZone: 'Europe/Paris'
+      }
+    );
 
-      path:
-        trackedPath,
+  const lastModified =
+    metadata?.last_modified ||
+    'unknown';
 
-      name:
-        getDisplayName(
-          trackedPath
-        ),
+  return [
+    `**${name} update detected at ${detectedTime}**`,
+    `Last modified ${lastModified}`
+  ].join('\n');
+}
 
+function formatViTrackerChanged(
+  metadata
+) {
+  const type =
+    metadata?.type ||
+    'updated';
+
+  const detectedAt =
+    metadata?.detected_at
+      ? new Date(
+          metadata.detected_at
+        )
+      : new Date();
+
+  const detectedTime =
+    detectedAt.toLocaleTimeString(
+      'en-GB',
+      {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+        timeZone: 'Europe/Paris'
+      }
+    );
+
+  const name =
+    metadata?.name ||
+    metadata?.path ||
+    'Unknown';
+
+  const url =
+    metadata?.url ||
+    '';
+
+  if (
+    type ===
+    'first_seen'
+  ) {
+    return [
+      `**VI TRACKER DETECTED AT ${detectedTime}**`,
+      `First seen **${name}**`,
       url
-    }
-  };
+    ].join('\n');
+  }
+
+  return [
+    `**VI TRACKER UPDATE DETECTED AT ${detectedTime}**`,
+    `Updated **${name}**`,
+    url
+  ].join('\n');
 }
 
 async function main() {
   const config =
-    readJson(
-      CONFIG_FILE
-    ) || {};
+    loadConfig();
 
-  const enabled =
-    config
-      ?.vi_tracker
-      ?.enabled !== false;
+  const file =
+    path.join(
+      ROOT,
+      'data',
+      'state',
+      'pending-notifications.json'
+    );
 
-  if (!enabled) {
-    console.log(
-      '[VI-TRACKER] Disabled by config.'
+  if (!fs.existsSync(file)) {
+    return;
+  }
+
+  const events =
+    JSON.parse(
+      fs.readFileSync(
+        file,
+        'utf8'
+      )
+    );
+
+  if (
+    !config.features.discord ||
+    !events.length
+  ) {
+    fs.writeFileSync(
+      file,
+      '[]\n'
     );
 
     return;
   }
 
-  console.log(
-    '[VI-TRACKER] Checking GTA VI URLs...'
-  );
+  const token =
+    process.env[
+      config.discord.token_env
+    ];
 
-  const previousState =
-    loadState();
+  const userId =
+    process.env[
+      config.discord.user_id_env
+    ];
 
-  const nextUrls = {};
+  if (!token || !userId) {
+    console.log(
+      'Discord notification skipped: missing secret/user id.'
+    );
 
-  let firstSeenCount =
-    0;
-
-  let updatedCount =
-    0;
-
-  for (
-    const group of TRACKED_URLS
-  ) {
-    for (
-      const trackedPath of
-        group.paths
-    ) {
-      const url =
-        buildUrl(
-          group.base,
-          trackedPath
-        );
-
-      const previous =
-        previousState.urls[
-          url
-        ];
-
-      const result =
-        await checkUrl(
-          url
-        );
-
-      nextUrls[url] = {
-        exists:
-          result.exists,
-
-        status:
-          result.status,
-
-        etag:
-          result.exists
-            ? result.etag
-            : null,
-
-        checked_at:
-          new Date().toISOString()
-      };
-
-      if (
-        result.exists
-      ) {
-        console.log(
-          `[VI-TRACKER] 200 ${url} ${
-            result.etag
-              ? `(ETag: ${result.etag})`
-              : '(no ETag)'
-          }`
-        );
-
-        const wasPreviouslySeen =
-          previous &&
-          previous.exists ===
-            true;
-
-        if (
-          !wasPreviouslySeen
-        ) {
-          console.log(
-            `[VI-TRACKER] First seen: ${url}`
-          );
-
-          appendPendingNotification(
-            buildNotification(
-              'first_seen',
-              url,
-              trackedPath
-            )
-          );
-
-          firstSeenCount++;
-        } else if (
-          previous.etag &&
-          result.etag &&
-          previous.etag !==
-            result.etag
-        ) {
-          console.log(
-            `[VI-TRACKER] Updated: ${url}`
-          );
-
-          appendPendingNotification(
-            buildNotification(
-              'updated',
-              url,
-              trackedPath
-            )
-          );
-
-          updatedCount++;
-        }
-      } else {
-        console.log(
-          `[VI-TRACKER] ${
-            result.status === null
-              ? 'ERROR'
-              : result.status
-          } ${url}`
-        );
-      }
-    }
+    return;
   }
 
-  writeJson(
-    STATE_FILE,
-    {
-      urls:
-        nextUrls,
+  for (const event of events) {
+    /*
+     * Notifications created by different modules may use
+     * either "event" or "type".
+     */
+    const eventType =
+      event?.event ||
+      event?.type;
 
-      updated_at:
-        new Date().toISOString()
+    let content;
+
+    /*
+     * Tunables updated
+     */
+    if (
+      eventType ===
+      'updated'
+    ) {
+      content =
+        formatUpdate({
+          title:
+            event.target.title,
+
+          platform:
+            event.target.platform,
+
+          lastModified:
+            event.metadata.last_modified,
+
+          previousLastModified:
+            event.metadata
+              .previous_last_modified,
+
+          changes:
+            event.changes,
+
+          detectedAt:
+            event.metadata.detected_at,
+
+          previousSize:
+            event.metadata
+              .previous_content_length,
+
+          currentSize:
+            event.metadata
+              .content_length
+        });
     }
-  );
 
-  console.log(
-    `[VI-TRACKER] Finished. First seen: ${firstSeenCount}, updated: ${updatedCount}.`
+    /*
+     * Tunables first seen
+     */
+    else if (
+      eventType ===
+      'first_seen'
+    ) {
+      content =
+        formatFirstSeen({
+          title:
+            event.target.title,
+
+          platform:
+            event.target.platform,
+
+          lastModified:
+            event.metadata.last_modified,
+
+          detectedAt:
+            event.metadata.detected_at,
+
+          previousSize:
+            event.metadata
+              .previous_content_length,
+
+          currentSize:
+            event.metadata
+              .content_length
+        });
+    }
+
+    /*
+     * Tunables recovery
+     */
+    else if (
+      eventType ===
+      'recovery_wait'
+    ) {
+      content =
+        formatRecovery({
+          title:
+            event.target.title,
+
+          platform:
+            event.target.platform,
+
+          lastModified:
+            event.metadata.last_modified,
+
+          detectedAt:
+            event.metadata.detected_at
+        });
+    }
+
+    /*
+     * Background Script new build
+     */
+    else if (
+      eventType ===
+      'background_new_build'
+    ) {
+      content =
+        formatBackgroundNewBuild({
+          title:
+            event.target.title,
+
+          platform:
+            event.target.platform,
+
+          build:
+            event.metadata.build,
+
+          previousBuild:
+            event.metadata.previous_build
+        });
+    }
+
+    /*
+     * Background Script first seen
+     */
+    else if (
+      eventType ===
+      'background_first_seen'
+    ) {
+      content =
+        formatBackgroundFirstSeen({
+          title:
+            event.target.title,
+
+          platform:
+            event.target.platform,
+
+          detectedAt:
+            event.metadata.detected_at,
+
+          lastModified:
+            event.metadata.last_modified,
+
+          build:
+            event.metadata.build,
+
+          previousSize:
+            event.metadata
+              .previous_content_length,
+
+          currentSize:
+            event.metadata
+              .content_length
+        });
+    }
+
+    /*
+     * Background Script updated
+     */
+    else if (
+      eventType ===
+      'background_updated'
+    ) {
+      content =
+        formatBackgroundUpdated({
+          title:
+            event.target.title,
+
+          platform:
+            event.target.platform,
+
+          detectedAt:
+            event.metadata.detected_at,
+
+          lastModified:
+            event.metadata.last_modified,
+
+          previousLastModified:
+            event.metadata
+              .previous_last_modified,
+
+          build:
+            event.metadata.build,
+
+          previousSize:
+            event.metadata
+              .previous_content_length,
+
+          currentSize:
+            event.metadata
+              .content_length
+        });
+    }
+
+    /*
+     * Rockstar Newswire new article
+     *
+     * Newswire currently writes:
+     * type: "newswire_new_post"
+     */
+    else if (
+      eventType ===
+        'newswire_new_post' ||
+      eventType ===
+        'newswire_new_article'
+    ) {
+      content =
+        formatNewswireArticle({
+          title:
+            event.title,
+
+          url:
+            event.url,
+
+          date:
+            event.date,
+
+          lastModified:
+            event.last_modified,
+
+          updatedAt:
+            event.updated_at,
+
+          detectedAt:
+            event.detected_at
+        });
+    }
+
+    /*
+     * Independent NewswireList API monitor
+     */
+    else if (
+      eventType ===
+      'newswire_api_changed'
+    ) {
+      content =
+        formatNewswireApiChanged(
+          event.metadata
+        );
+    }
+
+    /*
+     * GTA+ Website / Benefits monitor
+     */
+    else if (
+      eventType ===
+      'gta_plus_updated'
+    ) {
+      content =
+        formatGtaPlusUpdated(
+          event.metadata
+        );
+    }
+
+    /*
+     * GTA VI URL tracker
+     */
+    else if (
+      eventType ===
+      'vi_tracker_changed'
+    ) {
+      content =
+        formatViTrackerChanged(
+          event.metadata
+        );
+    }
+
+    /*
+     * Unknown event
+     */
+    else {
+      console.log(
+        `Unknown notification event skipped: ${eventType}`
+      );
+
+      continue;
+    }
+
+    await sendDM({
+      token,
+      userId,
+      content
+    });
+  }
+
+  fs.writeFileSync(
+    file,
+    '[]\n'
   );
 }
 
 main().catch(
   error => {
     console.error(
-      `[VI-TRACKER] ${
-        error.stack ||
-        error.message
-      }`
+      error
     );
 
-    process.exitCode = 1;
+    process.exit(1);
   }
 );
