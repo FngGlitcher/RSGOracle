@@ -37,6 +37,12 @@
   "newswire_api": {
     "enabled": true
   },
+  "vi_tracker": {
+    "enabled": true
+  },
+  "web_gta-plus": {
+    "enabled": true
+  },
   "dictionary": {
     "enabled": true,
     "compile_on_start": false
