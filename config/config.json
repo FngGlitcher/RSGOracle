@@ -1,3 +1,4 @@
+```json
 {
   "enabled": true,
   "polling": {
@@ -33,6 +34,9 @@
   "newswire": {
     "enabled": true,
     "latest_articles": 3
+  },
+  "newswire_api": {
+    "enabled": true
   },
   "dictionary": {
     "enabled": true,
@@ -208,3 +212,4 @@
     "asset": "0x1a098062"
   }
 }
+```
