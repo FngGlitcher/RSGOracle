@@ -334,6 +334,369 @@ function extractArticleObjects(
   }
 }
 
+async function enrichArticleMetadata(
+  page,
+  article
+) {
+  if (
+    !article ||
+    !article.url
+  ) {
+    return article;
+  }
+
+  try {
+    const metadata =
+      await page.evaluate(
+        async url => {
+          function clean(value) {
+            if (!value) {
+              return null;
+            }
+
+            const text =
+              String(value)
+                .replace(
+                  /\s+/g,
+                  " "
+                )
+                .trim();
+
+            return text || null;
+          }
+
+          function parseJsonLd(
+            value,
+            result
+          ) {
+            if (!value) {
+              return;
+            }
+
+            if (
+              Array.isArray(value)
+            ) {
+              for (
+                const item of
+                  value
+              ) {
+                parseJsonLd(
+                  item,
+                  result
+                );
+              }
+
+              return;
+            }
+
+            if (
+              typeof value !==
+              "object"
+            ) {
+              return;
+            }
+
+            if (
+              !result.date &&
+              value.datePublished
+            ) {
+              result.date =
+                value.datePublished;
+            }
+
+            if (
+              !result.updatedAt &&
+              value.dateModified
+            ) {
+              result.updatedAt =
+                value.dateModified;
+            }
+
+            if (
+              !result.date &&
+              value.dateCreated
+            ) {
+              result.date =
+                value.dateCreated;
+            }
+
+            for (
+              const child of
+                Object.values(value)
+            ) {
+              if (
+                child &&
+                typeof child ===
+                  "object"
+              ) {
+                parseJsonLd(
+                  child,
+                  result
+                );
+              }
+            }
+          }
+
+          try {
+            const response =
+              await fetch(
+                url,
+                {
+                  credentials:
+                    "include"
+                }
+              );
+
+            const lastModified =
+              response.headers.get(
+                "last-modified"
+              );
+
+            const html =
+              await response.text();
+
+            const parser =
+              new DOMParser();
+
+            const document =
+              parser.parseFromString(
+                html,
+                "text/html"
+              );
+
+            const result = {
+              date: null,
+              updatedAt: null,
+              lastModified:
+                clean(
+                  lastModified
+                )
+            };
+
+            const publishedSelectors = [
+              'meta[property="article:published_time"]',
+              'meta[name="article:published_time"]',
+              'meta[property="datePublished"]',
+              'meta[name="datePublished"]',
+              'meta[itemprop="datePublished"]',
+              'meta[name="publish-date"]',
+              'meta[name="publication-date"]',
+              'meta[name="date"]'
+            ];
+
+            const updatedSelectors = [
+              'meta[property="article:modified_time"]',
+              'meta[name="article:modified_time"]',
+              'meta[property="dateModified"]',
+              'meta[name="dateModified"]',
+              'meta[itemprop="dateModified"]',
+              'meta[name="modified"]',
+              'meta[name="lastmod"]'
+            ];
+
+            for (
+              const selector of
+                publishedSelectors
+            ) {
+              const element =
+                document.querySelector(
+                  selector
+                );
+
+              if (!element) {
+                continue;
+              }
+
+              const value =
+                element.getAttribute(
+                  "content"
+                ) ||
+                element.getAttribute(
+                  "datetime"
+                ) ||
+                element.textContent;
+
+              if (value) {
+                result.date =
+                  value.trim();
+
+                break;
+              }
+            }
+
+            for (
+              const selector of
+                updatedSelectors
+            ) {
+              const element =
+                document.querySelector(
+                  selector
+                );
+
+              if (!element) {
+                continue;
+              }
+
+              const value =
+                element.getAttribute(
+                  "content"
+                ) ||
+                element.getAttribute(
+                  "datetime"
+                ) ||
+                element.textContent;
+
+              if (value) {
+                result.updatedAt =
+                  value.trim();
+
+                break;
+              }
+            }
+
+            const jsonScripts =
+              Array.from(
+                document.querySelectorAll(
+                  'script[type="application/ld+json"]'
+                )
+              );
+
+            for (
+              const script of
+                jsonScripts
+            ) {
+              const text =
+                script.textContent;
+
+              if (!text) {
+                continue;
+              }
+
+              try {
+                const parsed =
+                  JSON.parse(text);
+
+                parseJsonLd(
+                  parsed,
+                  result
+                );
+              } catch {
+                // Ignore invalid JSON-LD.
+              }
+            }
+
+            if (
+              !result.date
+            ) {
+              const time =
+                document.querySelector(
+                  'time[datetime]'
+                );
+
+              if (time) {
+                result.date =
+                  time.getAttribute(
+                    "datetime"
+                  );
+              }
+            }
+
+            return result;
+          } catch {
+            return {
+              date: null,
+              updatedAt: null,
+              lastModified:
+                null
+            };
+          }
+        },
+        article.url
+      );
+
+    if (
+      metadata &&
+      metadata.date
+    ) {
+      article.date =
+        normalizeDate(
+          metadata.date
+        ) ||
+        article.date ||
+        null;
+    }
+
+    if (
+      metadata &&
+      metadata.updatedAt
+    ) {
+      article.updatedAt =
+        normalizeDate(
+          metadata.updatedAt
+        ) ||
+        article.updatedAt ||
+        null;
+    }
+
+    if (
+      metadata &&
+      metadata.lastModified
+    ) {
+      article.lastModified =
+        metadata.lastModified;
+    }
+  } catch (error) {
+    console.log(
+      `[NEWSWIRE] Metadata lookup failed for ${article.url}: ${error.message}`
+    );
+  }
+
+  return article;
+}
+
+async function enrichArticles(
+  page,
+  articles
+) {
+  if (
+    !articles.length
+  ) {
+    return articles;
+  }
+
+  console.log(
+    `[NEWSWIRE] Enriching metadata for ${articles.length} articles...`
+  );
+
+  for (
+    const article of
+      articles
+  ) {
+    await enrichArticleMetadata(
+      page,
+      article
+    );
+
+    console.log(
+      `[NEWSWIRE] Metadata: ${article.title}`
+    );
+
+    console.log(
+      `[NEWSWIRE] Published: ${article.date || "unknown"}`
+    );
+
+    console.log(
+      `[NEWSWIRE] Last-Modified header: ${article.lastModified || "unknown"}`
+    );
+
+    console.log(
+      `[NEWSWIRE] Updated: ${article.updatedAt || "unknown"}`
+    );
+  }
+
+  return articles;
+}
+
 async function launchBrowser() {
   return puppeteer.launch({
     headless: true,
@@ -732,26 +1095,10 @@ async function fetchNewswire(
       `[NEWSWIRE] Ignoring first featured result, checking ${candidates.length} latest articles.`
     );
 
-    for (
-      const article of
-        candidates
-    ) {
-      console.log(
-        `[NEWSWIRE] ${article.title}`
-      );
-
-      console.log(
-        `[NEWSWIRE] Published: ${article.date || "unknown"}`
-      );
-
-      console.log(
-        `[NEWSWIRE] Last-Modified header: ${article.lastModified || "unknown"}`
-      );
-
-      console.log(
-        `[NEWSWIRE] Updated: ${article.updatedAt || "unknown"}`
-      );
-    }
+    await enrichArticles(
+      page,
+      candidates
+    );
 
     return candidates;
   } finally {
@@ -1138,11 +1485,6 @@ async function main() {
         );
       }
 
-      /*
-       * Keep the existing notifications file for compatibility,
-       * but also place the events directly into the queue consumed
-       * by notify.js.
-       */
       const existingNotifications =
         loadNotifications(
           NOTIFICATIONS_FILE
