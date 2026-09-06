@@ -31,6 +31,7 @@
     "jobs_dictionary_url": "https://raw.githubusercontent.com/Troplo/GTAV-Tunables/master/src/static/jobs_dictionary.json"
   },
   "newswire": {
+    "enabled": true,
     "latest_articles": 3
   },
   "dictionary": {
