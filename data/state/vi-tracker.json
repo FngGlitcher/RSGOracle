@@ -4,164 +4,164 @@
       "exists": true,
       "status": 200,
       "etag": "\"iy01t7i8wikyt6\"",
-      "checked_at": "2026-09-06T22:25:08.655Z"
+      "checked_at": "2026-09-06T22:28:41.943Z"
     },
     "https://www.rockstargames.com/VI/media": {
       "exists": true,
       "status": 200,
       "etag": "\"v8siz8affufof6\"",
-      "checked_at": "2026-09-06T22:25:08.694Z"
+      "checked_at": "2026-09-06T22:28:41.972Z"
     },
     "https://www.rockstargames.com/VI/media/videos": {
       "exists": true,
       "status": 200,
       "etag": "\"3rr7t3w93wdc8h\"",
-      "checked_at": "2026-09-06T22:25:08.739Z"
+      "checked_at": "2026-09-06T22:28:42.001Z"
     },
     "https://www.rockstargames.com/VI/media/screenshots": {
       "exists": true,
       "status": 200,
       "etag": "\"ezh39hh14119swg\"",
-      "checked_at": "2026-09-06T22:25:08.776Z"
+      "checked_at": "2026-09-06T22:28:42.038Z"
     },
     "https://www.rockstargames.com/VI/media/artwork-wallpapers": {
       "exists": true,
       "status": 200,
       "etag": "\"5p4c17ctemhpw6\"",
-      "checked_at": "2026-09-06T22:25:08.831Z"
+      "checked_at": "2026-09-06T22:28:42.073Z"
     },
     "https://www.rockstargames.com/VI/pc": {
       "exists": false,
       "status": 404,
       "etag": null,
-      "checked_at": "2026-09-06T22:25:09.428Z"
+      "checked_at": "2026-09-06T22:28:42.281Z"
     },
     "https://www.rockstargames.com/VI/online": {
       "exists": false,
       "status": 404,
       "etag": null,
-      "checked_at": "2026-09-06T22:25:09.789Z"
+      "checked_at": "2026-09-06T22:28:42.582Z"
     },
     "https://www.rockstargames.com/VI/gta-online": {
       "exists": false,
       "status": 404,
       "etag": null,
-      "checked_at": "2026-09-06T22:25:10.099Z"
+      "checked_at": "2026-09-06T22:28:42.859Z"
     },
     "https://www.rockstargames.com/VI/buy": {
       "exists": false,
       "status": 404,
       "etag": null,
-      "checked_at": "2026-09-06T22:25:10.363Z"
+      "checked_at": "2026-09-06T22:28:43.048Z"
     },
     "https://www.rockstargames.com/VI/preorder": {
       "exists": false,
       "status": 404,
       "etag": null,
-      "checked_at": "2026-09-06T22:25:10.804Z"
+      "checked_at": "2026-09-06T22:28:43.312Z"
     },
     "https://www.rockstargames.com/VI/pre-order": {
       "exists": false,
       "status": 404,
       "etag": null,
-      "checked_at": "2026-09-06T22:25:11.176Z"
+      "checked_at": "2026-09-06T22:28:43.496Z"
     },
     "https://www.rockstargames.com/VI/pre-load": {
       "exists": false,
       "status": 404,
       "etag": null,
-      "checked_at": "2026-09-06T22:25:11.454Z"
+      "checked_at": "2026-09-06T22:28:43.729Z"
     },
     "https://www.rockstargames.com/VI/preload": {
       "exists": false,
       "status": 404,
       "etag": null,
-      "checked_at": "2026-09-06T22:25:11.695Z"
+      "checked_at": "2026-09-06T22:28:43.926Z"
     },
     "https://www.rockstargames.com/VI/leonida": {
       "exists": false,
       "status": 404,
       "etag": null,
-      "checked_at": "2026-09-06T22:25:12.109Z"
+      "checked_at": "2026-09-06T22:28:44.153Z"
     },
     "https://www.rockstargames.com/VI/collectors-edition": {
       "exists": false,
       "status": 404,
       "etag": null,
-      "checked_at": "2026-09-06T22:25:12.948Z"
+      "checked_at": "2026-09-06T22:28:44.312Z"
     },
     "https://www.rockstargames.com/VI/collectors": {
       "exists": false,
       "status": 404,
       "etag": null,
-      "checked_at": "2026-09-06T22:25:13.798Z"
+      "checked_at": "2026-09-06T22:28:44.563Z"
     },
     "https://www.rockstargames.com/VI/editions": {
       "exists": true,
       "status": 200,
       "etag": "\"s4l9l5qb9lc63l\"",
-      "checked_at": "2026-09-06T22:25:13.869Z"
+      "checked_at": "2026-09-06T22:28:44.596Z"
     },
     "https://www.rockstargames.com/VI/special-edition": {
       "exists": false,
       "status": 404,
       "etag": null,
-      "checked_at": "2026-09-06T22:25:14.383Z"
+      "checked_at": "2026-09-06T22:28:44.778Z"
     },
     "https://www.rockstargames.com/VI/trailer-3": {
       "exists": false,
       "status": 404,
       "etag": null,
-      "checked_at": "2026-09-06T22:25:14.611Z"
+      "checked_at": "2026-09-06T22:28:45.058Z"
     },
     "https://www.rockstargames.com/VI/companion": {
       "exists": false,
       "status": 404,
       "etag": null,
-      "checked_at": "2026-09-06T22:25:14.978Z"
+      "checked_at": "2026-09-06T22:28:45.316Z"
     },
     "https://www.rockstargames.com/VI/soundtrack": {
       "exists": false,
       "status": 404,
       "etag": null,
-      "checked_at": "2026-09-06T22:25:15.284Z"
+      "checked_at": "2026-09-06T22:28:45.575Z"
     },
     "https://www.rockstargames.com/VI/system-requirements": {
       "exists": false,
       "status": 404,
       "etag": null,
-      "checked_at": "2026-09-06T22:25:15.664Z"
+      "checked_at": "2026-09-06T22:28:45.761Z"
     },
     "https://www.rockstargames.com/VI/world": {
       "exists": false,
       "status": 404,
       "etag": null,
-      "checked_at": "2026-09-06T22:25:16.063Z"
+      "checked_at": "2026-09-06T22:28:45.970Z"
     },
     "https://www.rockstargames.com/VI/characters": {
       "exists": false,
       "status": 404,
       "etag": null,
-      "checked_at": "2026-09-06T22:25:16.422Z"
+      "checked_at": "2026-09-06T22:28:46.182Z"
     },
     "https://www.rockstargames.com/VI/vice-city": {
       "exists": true,
       "status": 200,
       "etag": "\"17znsmplgf2i1is\"",
-      "checked_at": "2026-09-06T22:25:17.156Z"
+      "checked_at": "2026-09-06T22:28:46.651Z"
     },
     "https://media.rockstargames.com/VI/downloads/videos/GTAVI_Videos.zip": {
       "exists": true,
       "status": 200,
       "etag": "\"9a86b36dde5b2d1ed3dba109a99d2491:1787878883.28961\"",
-      "checked_at": "2026-09-06T22:25:17.446Z"
+      "checked_at": "2026-09-06T22:28:46.941Z"
     },
     "https://media.rockstargames.com/VI/downloads/screenshots/GTAVI_Screenshots.zip": {
       "exists": true,
       "status": 200,
       "etag": "\"8fb9175cc5a5fd839bbf04610228d913:1788180040.96769\"",
-      "checked_at": "2026-09-06T22:25:17.605Z"
+      "checked_at": "2026-09-06T22:28:47.042Z"
     }
   },
-  "updated_at": "2026-09-06T22:25:17.605Z"
+  "updated_at": "2026-09-06T22:28:47.042Z"
 }
