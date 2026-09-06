@@ -41,6 +41,16 @@ const NEWSWIRE_URL =
 const DEFAULT_TIMEOUT =
   30000;
 
+/*
+ * Known NewswireList persisted-query hash currently used by Rockstar's
+ * GraphQL Newswire API.
+ *
+ * Keep automatic discovery below as a fallback in case Rockstar rotates
+ * the persisted query.
+ */
+const KNOWN_NEWSWIRE_LIST_HASH =
+  'aef12205cdcce5be34d9a2aa5e118635df895336ea5ea87e73b6b5d8a18ccc1a';
+
 function readJson(file) {
   if (!fs.existsSync(file)) {
     return null;
@@ -181,20 +191,8 @@ function formatArticle(
  *
  * Rockstar can send the GraphQL operation either:
  *
- * 1. In the URL query string:
- *      ?operationName=NewswireList
- *      &extensions={"persistedQuery":{"sha256Hash":"..."}}
- *
- * 2. In the POST body:
- *      {
- *        "operationName": "NewswireList",
- *        "variables": {...},
- *        "extensions": {
- *          "persistedQuery": {
- *            "sha256Hash": "..."
- *          }
- *        }
- *      }
+ * 1. In the URL query string.
+ * 2. In the POST body.
  *
  * Support both formats.
  */
@@ -248,16 +246,10 @@ function extractNewswireHashFromRequest(
     return null;
   }
 
-  /*
-   * Prefer the request body because this is the current GraphQL format.
-   */
   let extensions =
     body?.extensions ||
     null;
 
-  /*
-   * Fall back to the URL query string for older/current variants.
-   */
   if (!extensions) {
     try {
       const parsedUrl =
@@ -289,112 +281,111 @@ function extractNewswireHashFromRequest(
   );
 }
 
-async function getNewswireHash(
-  browser
-) {
-  const page =
-    await browser.newPage();
+/**
+ * Discover a new persisted-query hash from Rockstar's frontend.
+ *
+ * This is intentionally a fallback only. The normal path uses the known
+ * persisted-query hash and does not need Puppeteer.
+ */
+async function discoverNewswireHash() {
+  const browser =
+    await puppeteer.launch({
+      headless: true,
 
-  let hash =
-    null;
-
-  /*
-   * Puppeteer request interception is required because the persisted query
-   * hash is generated/embedded by Rockstar's frontend rather than being
-   * exposed as a stable value in this repository.
-   */
-  await page.setRequestInterception(
-    true
-  );
-
-  const requestHandler =
-    request => {
-      if (!hash) {
-        try {
-          const capturedHash =
-            extractNewswireHashFromRequest(
-              request
-            );
-
-          if (capturedHash) {
-            hash =
-              capturedHash;
-
-            console.log(
-              '[NEWSWIRE-API] Captured NewswireList persisted query hash.'
-            );
-          }
-        } catch (error) {
-          console.warn(
-            `[NEWSWIRE-API] Unable to inspect NewswireList request: ${error.message}`
-          );
-        }
-      }
-
-      /*
-       * IMPORTANT:
-       * Do not abort the NewswireList request after discovering it.
-       *
-       * The previous implementation aborted this request, which could
-       * interfere with Rockstar's frontend bootstrap and make hash
-       * discovery dependent on request timing.
-       */
-      request
-        .continue()
-        .catch(
-          () => {}
-        );
-    };
-
-  page.on(
-    'request',
-    requestHandler
-  );
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox'
+      ]
+    });
 
   try {
-    await page.goto(
-      NEWSWIRE_URL,
-      {
-        waitUntil:
-          'networkidle2',
+    const page =
+      await browser.newPage();
 
-        timeout:
-          DEFAULT_TIMEOUT
-      }
+    let hash =
+      null;
+
+    await page.setRequestInterception(
+      true
     );
 
-    /*
-     * The GraphQL request can sometimes happen shortly after the initial
-     * networkidle2 event. Give the application an additional short window.
-     */
-    if (!hash) {
-      try {
-        await page.waitForNetworkIdle({
-          idleTime: 500,
-          timeout: 5000
-        });
-      } catch {
-        /*
-         * The final hash check below determines whether discovery succeeded.
-         */
-      }
-    }
-  } finally {
-    page.off(
+    const requestHandler =
+      request => {
+        if (!hash) {
+          try {
+            const capturedHash =
+              extractNewswireHashFromRequest(
+                request
+              );
+
+            if (capturedHash) {
+              hash =
+                capturedHash;
+
+              console.log(
+                '[NEWSWIRE-API] Captured NewswireList persisted query hash.'
+              );
+            }
+          } catch (error) {
+            console.warn(
+              `[NEWSWIRE-API] Unable to inspect request: ${error.message}`
+            );
+          }
+        }
+
+        request
+          .continue()
+          .catch(
+            () => {}
+          );
+      };
+
+    page.on(
       'request',
       requestHandler
     );
 
-    await page.close();
-  }
+    try {
+      await page.goto(
+        NEWSWIRE_URL,
+        {
+          waitUntil:
+            'networkidle2',
 
-  if (!hash) {
-    throw new Error(
-      'Unable to find the NewswireList persisted query hash'
-    );
-  }
+          timeout:
+            DEFAULT_TIMEOUT
+        }
+      );
 
-  return hash;
+      if (!hash) {
+        try {
+          await page.waitForNetworkIdle({
+            idleTime: 500,
+            timeout: 5000
+          });
+        } catch {
+          // Final hash check below determines success.
+        }
+      }
+    } finally {
+      page.off(
+        'request',
+        requestHandler
+      );
+
+      await page.close();
+    }
+
+    if (!hash) {
+      throw new Error(
+        'Unable to find the NewswireList persisted query hash'
+      );
+    }
+
+    return hash;
+  } finally {
+    await browser.close();
+  }
 }
 
 async function requestNewswireList(
@@ -528,79 +519,73 @@ async function requestNewswireList(
 }
 
 async function getNewswireOutput() {
-  const browser =
-    await puppeteer.launch({
-      headless: true,
+  /*
+   * First attempt: use the known hash directly.
+   *
+   * This avoids launching Chromium during every GitHub Actions run.
+   */
+  let hash =
+    KNOWN_NEWSWIRE_LIST_HASH;
 
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox'
-      ]
-    });
+  console.log(
+    '[NEWSWIRE-API] Using known NewswireList persisted query hash.'
+  );
 
-  try {
-    let hash =
-      await getNewswireHash(
-        browser
-      );
+  let response =
+    await requestNewswireList(
+      hash
+    );
 
-    let response =
+  /*
+   * Only launch Puppeteer if Rockstar rejected the known hash.
+   */
+  if (
+    response.expiredHash
+  ) {
+    console.log(
+      '[NEWSWIRE-API] Known persisted query hash expired. Discovering new hash...'
+    );
+
+    hash =
+      await discoverNewswireHash();
+
+    response =
       await requestNewswireList(
         hash
       );
-
-    if (
-      response.expiredHash
-    ) {
-      console.log(
-        '[NEWSWIRE-API] Persisted query hash expired. Refreshing hash.'
-      );
-
-      hash =
-        await getNewswireHash(
-          browser
-        );
-
-      response =
-        await requestNewswireList(
-          hash
-        );
-    }
-
-    const results =
-      response
-        ?.result
-        ?.data
-        ?.posts
-        ?.results;
-
-    if (
-      !Array.isArray(
-        results
-      )
-    ) {
-      throw new Error(
-        'NewswireList returned no results array'
-      );
-    }
-
-    return {
-      hash,
-
-      count:
-        results.length,
-
-      results:
-        results.map(
-          formatArticle
-        ),
-
-      raw:
-        response.result
-    };
-  } finally {
-    await browser.close();
   }
+
+  const results =
+    response
+      ?.result
+      ?.data
+      ?.posts
+      ?.results;
+
+  if (
+    !Array.isArray(
+      results
+    )
+  ) {
+    throw new Error(
+      'NewswireList returned no results array'
+    );
+  }
+
+  return {
+    hash,
+
+    count:
+      results.length,
+
+    results:
+      results.map(
+        formatArticle
+      ),
+
+    raw:
+      response.result
+  };
 }
 
 function buildNotification(
