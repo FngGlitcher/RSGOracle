@@ -97,15 +97,20 @@ function formatNewswirePostedTime(value) {
     return String(value);
   }
 
-  return date.toLocaleTimeString(
-    'fr-FR',
+  return date.toLocaleString(
+    'en-US',
     {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-      second: '2-digit',
       hour12: false,
       timeZone: 'Europe/Paris'
     }
+  ).replace(
+    ',',
+    ' at'
   );
 }
 
@@ -114,13 +119,7 @@ function formatNewswireDate(value) {
     return 'unknown';
   }
 
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return String(value);
-  }
-
-  return date.toUTCString();
+  return String(value);
 }
 
 function formatSize(value) {
@@ -667,7 +666,6 @@ function formatNewswireArticle({
   url,
   date,
   lastModified,
-  updatedAt,
   detectedAt
 }) {
   const safeTitle =
@@ -687,9 +685,8 @@ function formatNewswireArticle({
 
   return [
     `**New post detected at ${formatDetectionTime(detectedAt)}**`,
-    `Posted at **${formatNewswirePostedTime(date)}**`,
+    `Posted ${formatNewswirePostedTime(date)}`,
     `Last modified **${formatNewswireDate(lastModified)}**`,
-    `Last update **${formatNewswireDate(updatedAt)}**`,
     titleLink
   ].join('\n');
 }
