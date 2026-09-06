@@ -159,12 +159,25 @@ function formatDetectedTime(
     );
   }
 
-  return date
-    .toISOString()
-    .slice(
-      11,
-      19
-    );
+  return date.toLocaleTimeString(
+    'fr-FR',
+    {
+      hour:
+        '2-digit',
+
+      minute:
+        '2-digit',
+
+      second:
+        '2-digit',
+
+      hour12:
+        false,
+
+      timeZone:
+        'Europe/Paris'
+    }
+  );
 }
 
 async function main() {
