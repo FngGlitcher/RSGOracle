@@ -151,13 +151,8 @@ function parseNewswireDate(value) {
    *
    * 9/3/26, 10:00 AM
    *
-   * IMPORTANT:
-   *
-   * We deliberately preserve the time as
-   * supplied by the Newswire DOM.
-   *
-   * The Newswire publication time must not
-   * be converted through the machine timezone.
+   * We deliberately keep the Newswire value
+   * independent from the machine timezone.
    */
 
   const match =
@@ -165,76 +160,62 @@ function parseNewswireDate(value) {
       /^(\d{1,2})\/(\d{1,2})\/(\d{2,4}),\s*(\d{1,2}):(\d{2})\s*(AM|PM)$/i
     );
 
-  if (match) {
-    let month =
-      Number(match[1]);
-
-    let day =
-      Number(match[2]);
-
-    let year =
-      Number(match[3]);
-
-    let hour =
-      Number(match[4]);
-
-    const minute =
-      Number(match[5]);
-
-    const period =
-      match[6].toUpperCase();
-
-    if (
-      year < 100
-    ) {
-      year +=
-        year < 70
-          ? 2000
-          : 1900;
-    }
-
-    if (
-      month < 1 ||
-      month > 12 ||
-      day < 1 ||
-      day > 31 ||
-      hour < 1 ||
-      hour > 12 ||
-      minute < 0 ||
-      minute > 59
-    ) {
-      return null;
-    }
-
-    if (
-      period === 'PM' &&
-      hour !== 12
-    ) {
-      hour += 12;
-    }
-
-    if (
-      period === 'AM' &&
-      hour === 12
-    ) {
-      hour = 0;
-    }
-
+  if (!match) {
     return {
-      raw: text,
-      year,
-      month,
-      day,
-      hour,
-      minute,
-      hour12:
-        Number(match[4]),
-      period
+      raw: text
+    };
+  }
+
+  let year =
+    Number(match[3]);
+
+  if (
+    year < 100
+  ) {
+    year +=
+      year < 70
+        ? 2000
+        : 1900;
+  }
+
+  const month =
+    Number(match[1]);
+
+  const day =
+    Number(match[2]);
+
+  const hour12 =
+    Number(match[4]);
+
+  const minute =
+    Number(match[5]);
+
+  const period =
+    match[6].toUpperCase();
+
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31 ||
+    hour12 < 1 ||
+    hour12 > 12 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    return {
+      raw: text
     };
   }
 
   return {
-    raw: text
+    raw: text,
+    year,
+    month,
+    day,
+    hour12,
+    minute,
+    period
   };
 }
 
@@ -243,14 +224,182 @@ function formatNewswireDate(value) {
     return null;
   }
 
+  const parsed =
+    typeof value === 'object'
+      ? value
+      : parseNewswireDate(value);
+
   if (
-    typeof value === 'object' &&
-    value.raw
+    !parsed ||
+    !parsed.raw
   ) {
-    return value.raw;
+    return null;
   }
 
-  return String(value);
+  /*
+   * The Newswire datetime is supplied as:
+   *
+   * 9/1/26, 12:00 PM
+   *
+   * Discord must receive the Newswire time,
+   * not a JavaScript Date converted to another
+   * timezone.
+   *
+   * Result:
+   *
+   * September 1, 2026 at 12:00
+   */
+
+  if (
+    Number.isInteger(
+      parsed.year
+    ) &&
+    Number.isInteger(
+      parsed.month
+    ) &&
+    Number.isInteger(
+      parsed.day
+    ) &&
+    Number.isInteger(
+      parsed.hour12
+    ) &&
+    Number.isInteger(
+      parsed.minute
+    ) &&
+    parsed.period
+  ) {
+    let hour =
+      parsed.hour12;
+
+    if (
+      parsed.period === 'PM' &&
+      hour !== 12
+    ) {
+      hour += 12;
+    }
+
+    if (
+      parsed.period === 'AM' &&
+      hour === 12
+    ) {
+      hour = 0;
+    }
+
+    const date =
+      new Date(
+        Date.UTC(
+          parsed.year,
+          parsed.month - 1,
+          parsed.day,
+          hour,
+          parsed.minute
+        )
+      );
+
+    if (
+      !Number.isNaN(
+        date.getTime()
+      )
+    ) {
+      const monthName =
+        date.toLocaleString(
+          'en-US',
+          {
+            month: 'long',
+            timeZone: 'UTC'
+          }
+        );
+
+      return [
+        `${monthName} ${parsed.day}, ${parsed.year}`,
+        'at',
+        `${String(hour).padStart(2, '0')}:${String(parsed.minute).padStart(2, '0')}`
+      ].join(' ');
+    }
+  }
+
+  return parsed.raw;
+}
+
+function cleanNewswireTitle(value) {
+  let title =
+    cleanText(value);
+
+  if (!title) {
+    return null;
+  }
+
+  /*
+   * Newswire cards can contain:
+   *
+   * Red Dead OnlineSeptember 1, 2026
+   * Distill Your Best Swill...
+   *
+   * or:
+   *
+   * Red Dead Online
+   * September 1, 2026
+   * Distill Your Best Swill...
+   *
+   * Remove those metadata prefixes while
+   * preserving the actual article title.
+   */
+
+  title =
+    title
+      .replace(
+        /^(?:GTA Online|Red Dead Online|Rockstar Games|GTA VI|GTA V)\s*/i,
+        ''
+      )
+      .trim();
+
+  title =
+    title.replace(
+      /^(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s*\d{4}\s*/i,
+      ''
+    ).trim();
+
+  title =
+    title.replace(
+      /^\d{1,2}\/\d{1,2}\/\d{2,4},?\s*/i,
+      ''
+    ).trim();
+
+  /*
+   * Handle the exact concatenated form currently
+   * returned by Rockstar:
+   *
+   * Red Dead OnlineSeptember 1, 2026Distill...
+   */
+
+  title =
+    title.replace(
+      /^(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s*\d{4}/i,
+      ''
+    ).trim();
+
+  /*
+   * Remove a remaining game/category prefix when
+   * it is directly followed by a Newswire date.
+   */
+
+  title =
+    title.replace(
+      /^(?:GTA Online|Red Dead Online|Rockstar Games|GTA VI|GTA V)(?=(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s*\d{4})/i,
+      ''
+    ).trim();
+
+  /*
+   * Remove duplicate whitespace introduced by the
+   * metadata cleanup.
+   */
+
+  title =
+    title
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  return title || null;
 }
 
 function extractTitleFromCard(link) {
@@ -286,6 +435,7 @@ function extractTitleFromCard(link) {
    * Prefer an actual heading inside the
    * article card.
    */
+
   const heading =
     link.querySelector(
       'h1, h2, h3, h4, h5, h6'
@@ -309,6 +459,7 @@ function extractTitleFromCard(link) {
    * in an element with a title-like
    * accessibility/class attribute.
    */
+
   const titleNode =
     link.querySelector(
       '[data-testid*="title" i], [class*="title" i]'
@@ -328,11 +479,10 @@ function extractTitleFromCard(link) {
   }
 
   /*
-   * Last fallback: inspect the anchor's
-   * direct text while removing obvious
-   * metadata such as game/platform names
-   * and dates.
+   * Last fallback: inspect the complete anchor
+   * text and clean Newswire metadata from it.
    */
+
   const directText =
     cleanText(
       link.textContent
@@ -347,65 +497,16 @@ function extractTitleFromCard(link) {
   for (
     const candidate of candidates
   ) {
-    if (!candidate) {
-      continue;
-    }
-
-    /*
-     * Reject values that are clearly the
-     * complete article card instead of the
-     * article title.
-     */
-    if (
-      /^(?:GTA Online|Red Dead Online|Rockstar Games|GTA VI|GTA V)\s*/i.test(
+    const cleaned =
+      cleanNewswireTitle(
         candidate
-      ) &&
-      /\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/.test(
-        candidate
-      )
-    ) {
-      const cleaned =
-        candidate
-          .replace(
-            /^(?:GTA Online|Red Dead Online|Rockstar Games|GTA VI|GTA V)\s*/i,
-            ''
-          )
-          .replace(
-            /^\d{1,2}\/\d{1,2}\/\d{2,4}\s*/,
-            ''
-          )
-          .trim();
-
-      if (cleaned) {
-        return cleaned;
-      }
-    }
-
-    /*
-     * If the candidate contains the visible
-     * publication date followed by the title,
-     * remove the metadata prefix.
-     */
-    const withoutMetadata =
-      candidate
-        .replace(
-          /^(?:GTA Online|Red Dead Online|Rockstar Games|GTA VI|GTA V)\s*/i,
-          ''
-        )
-        .replace(
-          /^\d{1,2}\/\d{1,2}\/\d{2,4}\s*/,
-          ''
-        )
-        .trim();
+      );
 
     if (
-      withoutMetadata &&
-      withoutMetadata !== candidate
+      cleaned
     ) {
-      return withoutMetadata;
+      return cleaned;
     }
-
-    return candidate;
   }
 
   return null;
@@ -445,6 +546,75 @@ async function extractNewswireArticles(page) {
           /rockstargames\.com\/(?:[a-z]{2}\/)?newswire\/article\//i.test(
             value
           )
+      );
+    }
+
+    function cleanTitle(value) {
+      let title =
+        clean(value);
+
+      if (!title) {
+        return null;
+      }
+
+      /*
+       * Remove category/game prefixes.
+       */
+
+      title =
+        title.replace(
+          /^(?:GTA Online|Red Dead Online|Rockstar Games|GTA VI|GTA V)\s*/i,
+          ''
+        ).trim();
+
+      /*
+       * Remove dates such as:
+       *
+       * September 1, 2026
+       * 9/1/26
+       */
+
+      title =
+        title.replace(
+          /^(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s*\d{4}\s*/i,
+          ''
+        ).trim();
+
+      title =
+        title.replace(
+          /^\d{1,2}\/\d{1,2}\/\d{2,4},?\s*/i,
+          ''
+        ).trim();
+
+      /*
+       * Important case:
+       *
+       * Red Dead OnlineSeptember 1, 2026Distill...
+       *
+       * After removing the category we still have:
+       *
+       * September 1, 2026Distill...
+       *
+       * Remove the concatenated date.
+       */
+
+      title =
+        title.replace(
+          /^(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s*\d{4}/i,
+          ''
+        ).trim();
+
+      title =
+        title.replace(
+          /^\d{1,2}\/\d{1,2}\/\d{2,4}/i,
+          ''
+        ).trim();
+
+      return (
+        title
+          .replace(/\s+/g, ' ')
+          .trim() ||
+        null
       );
     }
 
@@ -527,37 +697,60 @@ async function extractNewswireArticles(page) {
       for (
         const candidate of candidates
       ) {
-        if (!candidate) {
-          continue;
-        }
-
-        let result =
-          candidate
-            .replace(
-              /^(?:GTA Online|Red Dead Online|Rockstar Games|GTA VI|GTA V)\s*/i,
-              ''
-            )
-            .trim();
-
-        result =
-          result.replace(
-            /^\d{1,2}\/\d{1,2}\/\d{2,4}\s*/,
-            ''
-          ).trim();
-
-        /*
-         * Remove a date appearing directly
-         * before the title.
-         */
-        result =
-          result.replace(
-            /^\d{1,2}\/\d{1,2}\/\d{2,4},?\s*/,
-            ''
-          ).trim();
+        const result =
+          cleanTitle(
+            candidate
+          );
 
         if (result) {
           return result;
         }
+      }
+
+      /*
+       * Final fallback:
+       *
+       * The Newswire article URL itself contains
+       * the article title as its slug.
+       */
+
+      try {
+        const parsed =
+          new URL(
+            link.href
+          );
+
+        const parts =
+          parsed.pathname
+            .split('/')
+            .filter(Boolean);
+
+        const slug =
+          parts[
+            parts.length - 1
+          ];
+
+        if (slug) {
+          const decoded =
+            decodeURIComponent(
+              slug
+            )
+              .replace(
+                /[-_]+/g,
+                ' '
+              )
+              .replace(
+                /\s+/g,
+                ' '
+              )
+              .trim();
+
+          if (decoded) {
+            return decoded;
+          }
+        }
+      } catch {
+        // Ignore fallback errors.
       }
 
       return null;
@@ -614,6 +807,7 @@ async function extractNewswireArticles(page) {
        * Find the closest DOM container
        * containing the publication <time>.
        */
+
       let container =
         link;
 
@@ -750,6 +944,7 @@ async function getArticleLastModified(
      * It is intentionally not parsed,
      * converted or reformatted.
      */
+
     return (
       headers['last-modified'] ||
       null
@@ -1006,6 +1201,7 @@ async function main() {
      * We explicitly ignore that first
      * featured item.
      */
+
     const latestArticles =
       allArticles.slice(
         1,
@@ -1037,12 +1233,18 @@ async function main() {
      * Get metadata directly from each
      * article page.
      */
+
     for (
       const article of latestArticles
     ) {
       console.log(
         `[NEWSWIRE] Reading article header: ${article.url}`
       );
+
+      /*
+       * Preserve the Newswire publication date/time
+       * independently from Last-Modified.
+       */
 
       article.date =
         formatNewswireDate(
@@ -1057,12 +1259,27 @@ async function main() {
           article.url
         );
 
+      /*
+       * Final title cleanup in Node as well.
+       * This protects the state/notification files
+       * even if the DOM structure changes.
+       */
+
+      article.title =
+        cleanNewswireTitle(
+          article.title
+        );
+
       console.log(
         `[NEWSWIRE] Posted: ${article.date || 'unknown'}`
       );
 
       console.log(
         `[NEWSWIRE] Last-Modified: ${article.lastModified || 'unknown'}`
+      );
+
+      console.log(
+        `[NEWSWIRE] Title: ${article.title || 'unknown'}`
       );
     }
 
@@ -1095,6 +1312,14 @@ async function main() {
     console.log(
       `[NEWSWIRE] New articles detected: ${newArticles.length}`
     );
+
+    /*
+     * One detection timestamp for this execution.
+     *
+     * Discord formats this as:
+     *
+     * New post detected at 03:12:25
+     */
 
     const detectedAt =
       new Date().toISOString();
@@ -1149,6 +1374,7 @@ async function main() {
      * allowing the state file to grow
      * forever.
      */
+
     state.articles =
       state.articles
         .filter(
