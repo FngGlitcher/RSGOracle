@@ -27,7 +27,11 @@ jobs:
         run: npm install
 
       - name: Check JavaScript syntax
-        run: npm run check
+        run: |
+          npm run check
+          node --check src/newswire-api.js
+          node --check src/gta-plus.js
+          node --check src/vi-tracker.js
 
       - name: Prepare dictionary
         run: |
@@ -73,8 +77,15 @@ jobs:
 
       - name: Check Rockstar Newswire
         run: node src/newswire.js
+
       - name: Check NewswireList API
         run: node src/newswire-api.js
+
+      - name: Check GTA+ websites
+        run: node src/gta-plus.js
+
+      - name: Check GTA VI tracker
+        run: node src/vi-tracker.js
 
       - name: Send Discord notifications
         if: success()
