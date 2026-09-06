@@ -79,7 +79,7 @@ function historyPath(target, timestamp) {
     'history',
     safeName(target.title),
     'tunable',
-    `${safeName(target.platform)}-${timestamp}.json`
+    `${timestamp}_${safeName(target.platform)}_0x1a098062.json`
   );
 }
 
