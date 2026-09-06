@@ -150,6 +150,14 @@ function parseNewswireDate(value) {
    * Rockstar currently exposes values such as:
    *
    * 9/3/26, 10:00 AM
+   *
+   * IMPORTANT:
+   *
+   * We deliberately preserve the time as
+   * supplied by the Newswire DOM.
+   *
+   * The Newswire publication time must not
+   * be converted through the machine timezone.
    */
 
   const match =
@@ -176,11 +184,26 @@ function parseNewswireDate(value) {
     const period =
       match[6].toUpperCase();
 
-    if (year < 100) {
+    if (
+      year < 100
+    ) {
       year +=
         year < 70
           ? 2000
           : 1900;
+    }
+
+    if (
+      month < 1 ||
+      month > 12 ||
+      day < 1 ||
+      day > 31 ||
+      hour < 1 ||
+      hour > 12 ||
+      minute < 0 ||
+      minute > 59
+    ) {
+      return null;
     }
 
     if (
@@ -197,35 +220,192 @@ function parseNewswireDate(value) {
       hour = 0;
     }
 
-    const date =
-      new Date(
-        Date.UTC(
-          year,
-          month - 1,
-          day,
-          hour,
-          minute
-        )
+    return {
+      raw: text,
+      year,
+      month,
+      day,
+      hour,
+      minute,
+      hour12:
+        Number(match[4]),
+      period
+    };
+  }
+
+  return {
+    raw: text
+  };
+}
+
+function formatNewswireDate(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (
+    typeof value === 'object' &&
+    value.raw
+  ) {
+    return value.raw;
+  }
+
+  return String(value);
+}
+
+function extractTitleFromCard(link) {
+  const candidates = [];
+
+  const ariaLabel =
+    cleanText(
+      link.getAttribute(
+        'aria-label'
+      )
+    );
+
+  if (ariaLabel) {
+    candidates.push(
+      ariaLabel
+    );
+  }
+
+  const titleAttribute =
+    cleanText(
+      link.getAttribute(
+        'title'
+      )
+    );
+
+  if (titleAttribute) {
+    candidates.push(
+      titleAttribute
+    );
+  }
+
+  /*
+   * Prefer an actual heading inside the
+   * article card.
+   */
+  const heading =
+    link.querySelector(
+      'h1, h2, h3, h4, h5, h6'
+    );
+
+  if (heading) {
+    const headingText =
+      cleanText(
+        heading.textContent
       );
 
-    if (
-      !Number.isNaN(
-        date.getTime()
-      )
-    ) {
-      return date.toISOString();
+    if (headingText) {
+      candidates.push(
+        headingText
+      );
     }
   }
 
-  const fallback =
-    new Date(text);
+  /*
+   * Some Newswire cards put the title
+   * in an element with a title-like
+   * accessibility/class attribute.
+   */
+  const titleNode =
+    link.querySelector(
+      '[data-testid*="title" i], [class*="title" i]'
+    );
 
-  if (
-    !Number.isNaN(
-      fallback.getTime()
-    )
+  if (titleNode) {
+    const titleText =
+      cleanText(
+        titleNode.textContent
+      );
+
+    if (titleText) {
+      candidates.push(
+        titleText
+      );
+    }
+  }
+
+  /*
+   * Last fallback: inspect the anchor's
+   * direct text while removing obvious
+   * metadata such as game/platform names
+   * and dates.
+   */
+  const directText =
+    cleanText(
+      link.textContent
+    );
+
+  if (directText) {
+    candidates.push(
+      directText
+    );
+  }
+
+  for (
+    const candidate of candidates
   ) {
-    return fallback.toISOString();
+    if (!candidate) {
+      continue;
+    }
+
+    /*
+     * Reject values that are clearly the
+     * complete article card instead of the
+     * article title.
+     */
+    if (
+      /^(?:GTA Online|Red Dead Online|Rockstar Games|GTA VI|GTA V)\s*/i.test(
+        candidate
+      ) &&
+      /\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/.test(
+        candidate
+      )
+    ) {
+      const cleaned =
+        candidate
+          .replace(
+            /^(?:GTA Online|Red Dead Online|Rockstar Games|GTA VI|GTA V)\s*/i,
+            ''
+          )
+          .replace(
+            /^\d{1,2}\/\d{1,2}\/\d{2,4}\s*/,
+            ''
+          )
+          .trim();
+
+      if (cleaned) {
+        return cleaned;
+      }
+    }
+
+    /*
+     * If the candidate contains the visible
+     * publication date followed by the title,
+     * remove the metadata prefix.
+     */
+    const withoutMetadata =
+      candidate
+        .replace(
+          /^(?:GTA Online|Red Dead Online|Rockstar Games|GTA VI|GTA V)\s*/i,
+          ''
+        )
+        .replace(
+          /^\d{1,2}\/\d{1,2}\/\d{2,4}\s*/,
+          ''
+        )
+        .trim();
+
+    if (
+      withoutMetadata &&
+      withoutMetadata !== candidate
+    ) {
+      return withoutMetadata;
+    }
+
+    return candidate;
   }
 
   return null;
@@ -246,6 +426,143 @@ async function launchBrowser() {
 
 async function extractNewswireArticles(page) {
   return page.evaluate(() => {
+    function clean(value) {
+      if (!value) {
+        return null;
+      }
+
+      const text =
+        String(value)
+          .replace(/\s+/g, ' ')
+          .trim();
+
+      return text || null;
+    }
+
+    function isArticleUrl(value) {
+      return Boolean(
+        value &&
+          /rockstargames\.com\/(?:[a-z]{2}\/)?newswire\/article\//i.test(
+            value
+          )
+      );
+    }
+
+    function extractTitle(link) {
+      const candidates = [];
+
+      const ariaLabel =
+        clean(
+          link.getAttribute(
+            'aria-label'
+          )
+        );
+
+      if (ariaLabel) {
+        candidates.push(
+          ariaLabel
+        );
+      }
+
+      const titleAttribute =
+        clean(
+          link.getAttribute(
+            'title'
+          )
+        );
+
+      if (titleAttribute) {
+        candidates.push(
+          titleAttribute
+        );
+      }
+
+      const heading =
+        link.querySelector(
+          'h1, h2, h3, h4, h5, h6'
+        );
+
+      if (heading) {
+        const value =
+          clean(
+            heading.textContent
+          );
+
+        if (value) {
+          candidates.push(
+            value
+          );
+        }
+      }
+
+      const titleNode =
+        link.querySelector(
+          '[data-testid*="title" i], [class*="title" i]'
+        );
+
+      if (titleNode) {
+        const value =
+          clean(
+            titleNode.textContent
+          );
+
+        if (value) {
+          candidates.push(
+            value
+          );
+        }
+      }
+
+      const anchorText =
+        clean(
+          link.textContent
+        );
+
+      if (anchorText) {
+        candidates.push(
+          anchorText
+        );
+      }
+
+      for (
+        const candidate of candidates
+      ) {
+        if (!candidate) {
+          continue;
+        }
+
+        let result =
+          candidate
+            .replace(
+              /^(?:GTA Online|Red Dead Online|Rockstar Games|GTA VI|GTA V)\s*/i,
+              ''
+            )
+            .trim();
+
+        result =
+          result.replace(
+            /^\d{1,2}\/\d{1,2}\/\d{2,4}\s*/,
+            ''
+          ).trim();
+
+        /*
+         * Remove a date appearing directly
+         * before the title.
+         */
+        result =
+          result.replace(
+            /^\d{1,2}\/\d{1,2}\/\d{2,4},?\s*/,
+            ''
+          ).trim();
+
+        if (result) {
+          return result;
+        }
+      }
+
+      return null;
+    }
+
     const links =
       Array.from(
         document.querySelectorAll(
@@ -256,13 +573,15 @@ async function extractNewswireArticles(page) {
     const articles = [];
     const seen = new Set();
 
-    for (const link of links) {
-      const href =
+    for (
+      const link of links
+    ) {
+      const rawHref =
         link.href || '';
 
       if (
-        !/rockstargames\.com\/(?:[a-z]{2}\/)?newswire\/article\//i.test(
-          href
+        !isArticleUrl(
+          rawHref
         )
       ) {
         continue;
@@ -272,7 +591,9 @@ async function extractNewswireArticles(page) {
 
       try {
         const parsed =
-          new URL(href);
+          new URL(
+            rawHref
+          );
 
         parsed.hash = '';
         parsed.search = '';
@@ -283,14 +604,15 @@ async function extractNewswireArticles(page) {
         continue;
       }
 
-      if (seen.has(url)) {
+      if (
+        seen.has(url)
+      ) {
         continue;
       }
 
       /*
-       * Walk up the DOM to find the
-       * article card containing the
-       * publication <time>.
+       * Find the closest DOM container
+       * containing the publication <time>.
        */
       let container =
         link;
@@ -300,7 +622,7 @@ async function extractNewswireArticles(page) {
 
       for (
         let depth = 0;
-        depth < 10 && container;
+        depth < 12 && container;
         depth += 1
       ) {
         time =
@@ -321,32 +643,21 @@ async function extractNewswireArticles(page) {
       }
 
       const datetime =
-        time.getAttribute(
-          'datetime'
+        clean(
+          time.getAttribute(
+            'datetime'
+          )
         );
 
       const visibleDate =
-        time.textContent;
-
-      /*
-       * Prefer the article title
-       * from the card rather than
-       * arbitrary text from the page.
-       */
-      let title =
-        link.getAttribute(
-          'aria-label'
+        clean(
+          time.textContent
         );
 
-      if (!title) {
-        title =
-          link.textContent;
-      }
-
-      title =
-        String(title || '')
-          .replace(/\s+/g, ' ')
-          .trim();
+      const title =
+        extractTitle(
+          link
+        );
 
       if (!title) {
         continue;
@@ -358,15 +669,9 @@ async function extractNewswireArticles(page) {
         url,
         title,
         datetime:
-          String(
-            datetime || ''
-          ).trim(),
+          datetime || '',
         visibleDate:
-          String(
-            visibleDate || ''
-          )
-            .replace(/\s+/g, ' ')
-            .trim()
+          visibleDate || ''
       });
     }
 
@@ -442,10 +747,8 @@ async function getArticleLastModified(
      * This is the raw HTTP Last-Modified
      * header from the ARTICLE response.
      *
-     * We do not parse it.
-     * We do not convert it.
-     * We do not replace it with
-     * the publication date.
+     * It is intentionally not parsed,
+     * converted or reformatted.
      */
     return (
       headers['last-modified'] ||
@@ -458,7 +761,9 @@ async function getArticleLastModified(
 
 function loadState() {
   const state =
-    readJson(STATE_FILE);
+    readJson(
+      STATE_FILE
+    );
 
   if (
     !state ||
@@ -491,9 +796,13 @@ function loadNotificationArray(
   file
 ) {
   const value =
-    readJson(file);
+    readJson(
+      file
+    );
 
-  return Array.isArray(value)
+  return Array.isArray(
+    value
+  )
     ? value
     : [];
 }
@@ -501,7 +810,9 @@ function loadNotificationArray(
 function appendNotifications(
   notifications
 ) {
-  if (!notifications.length) {
+  if (
+    !notifications.length
+  ) {
     return;
   }
 
@@ -522,7 +833,9 @@ function appendNotifications(
 function appendPendingNotifications(
   notifications
 ) {
-  if (!notifications.length) {
+  if (
+    !notifications.length
+  ) {
     return;
   }
 
@@ -533,12 +846,13 @@ function appendPendingNotifications(
 
   const keys =
     new Set(
-      pending.map(event =>
-        [
-          event.type || '',
-          event.url || '',
-          event.detected_at || ''
-        ].join('|')
+      pending.map(
+        event =>
+          [
+            event.type || '',
+            event.url || '',
+            event.detected_at || ''
+          ].join('|')
       )
     );
 
@@ -552,7 +866,9 @@ function appendPendingNotifications(
         notification.detected_at || ''
       ].join('|');
 
-    if (keys.has(key)) {
+    if (
+      keys.has(key)
+    ) {
       continue;
     }
 
@@ -620,17 +936,15 @@ async function main() {
   );
 
   const config =
-    readJson(CONFIG_FILE) || {};
+    readJson(
+      CONFIG_FILE
+    ) || {};
 
   const configuredLimit =
     Number(
       config?.newswire?.latest_articles
     );
 
-  /*
-   * Newswire is intentionally limited
-   * to the 3 latest posted articles.
-   */
   const limit =
     Number.isInteger(
       configuredLimit
@@ -676,18 +990,21 @@ async function main() {
       `[NEWSWIRE] Article links detected: ${allArticles.length}`
     );
 
-    if (!allArticles.length) {
+    if (
+      !allArticles.length
+    ) {
       throw new Error(
         'No Newswire articles detected.'
       );
     }
 
     /*
-     * Rockstar puts the featured/pinned
-     * article first.
+     * Rockstar currently places the
+     * featured/pinned article before the
+     * normal article feed.
      *
-     * The actual latest posts therefore
-     * start at index 1.
+     * We explicitly ignore that first
+     * featured item.
      */
     const latestArticles =
       allArticles.slice(
@@ -717,8 +1034,8 @@ async function main() {
     }
 
     /*
-     * Get the raw HTTP Last-Modified
-     * header from each article itself.
+     * Get metadata directly from each
+     * article page.
      */
     for (
       const article of latestArticles
@@ -728,8 +1045,10 @@ async function main() {
       );
 
       article.date =
-        parseNewswireDate(
-          article.datetime
+        formatNewswireDate(
+          parseNewswireDate(
+            article.datetime
+          )
         );
 
       article.lastModified =
@@ -755,7 +1074,9 @@ async function main() {
     for (
       const article of state.articles
     ) {
-      if (article?.url) {
+      if (
+        article?.url
+      ) {
         knownUrls.add(
           article.url
         );
@@ -811,6 +1132,7 @@ async function main() {
       );
 
       if (
+        article.url &&
         !state.known_urls.includes(
           article.url
         )
@@ -822,9 +1144,10 @@ async function main() {
     }
 
     /*
-     * Keep the state small while
-     * retaining enough history to
-     * prevent duplicate notifications.
+     * Keep enough history to prevent
+     * duplicate notifications without
+     * allowing the state file to grow
+     * forever.
      */
     state.articles =
       state.articles
@@ -849,7 +1172,9 @@ async function main() {
       state
     );
 
-    if (notifications.length) {
+    if (
+      notifications.length
+    ) {
       appendNotifications(
         notifications
       );
