@@ -1,4 +1,3 @@
-```json
 {
   "enabled": true,
   "polling": {
@@ -212,4 +211,3 @@
     "asset": "0x1a098062"
   }
 }
-```
