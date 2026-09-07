@@ -43,6 +43,9 @@
   "web_gta-plus": {
     "enabled": true
   },
+  "tunable_watch": {
+    "enabled": true
+  },
   "dictionary": {
     "enabled": true,
     "compile_on_start": false
