@@ -8,6 +8,14 @@ const { ROOT } = require('./config');
 const { decryptTunables, normalizeTunables } = require('./decrypt');
 const { diffValues } = require('./diff');
 
+const BGSK_WATCH_KEYS = [
+  'EXPECTEDBGSNUMBERBGSK',
+  'POSIXTIMEBGSK',
+  'DISABLEBGMINVERSION',
+  'EXPECTEDBGMINVERSION',
+  'POSIXTIMEBGMIN'
+];
+
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
@@ -361,14 +369,20 @@ function applyCustomDictionary(tunables) {
 
   const output = {};
 
-  for (const [key, value] of Object.entries(tunables || {})) {
-    const customName = dictionary[key];
+  for (
+    const [key, value]
+    of Object.entries(tunables || {})
+  ) {
+    const customName =
+      dictionary[key];
 
     if (
       typeof customName === 'string' &&
       customName.trim()
     ) {
-      output[customName.trim()] = value;
+      output[
+        customName.trim()
+      ] = value;
     } else {
       output[key] = value;
     }
@@ -468,6 +482,236 @@ function repositoryFileUrl(relativePath) {
     `https://github.com/${repo}` +
     `/blob/${ref}/${relativePath}`
   );
+}
+
+function getTunableVersion(tunables) {
+  if (
+    Object.prototype.hasOwnProperty.call(
+      tunables || {},
+      'TUNABLE_VERSION'
+    )
+  ) {
+    return tunables.TUNABLE_VERSION;
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(
+      tunables || {},
+      '_0x1EED3E39'
+    )
+  ) {
+    return tunables._0x1EED3E39;
+  }
+
+  return null;
+}
+
+function updateTunableWatch(
+  state,
+  target,
+  currentData,
+  metadata,
+  enabled
+) {
+  if (!enabled) {
+    return null;
+  }
+
+  const tunables =
+    currentData?.TUNABLES;
+
+  if (
+    !tunables ||
+    typeof tunables !== 'object'
+  ) {
+    return null;
+  }
+
+  if (
+    !state.tunable_watch ||
+    typeof state.tunable_watch !== 'object'
+  ) {
+    state.tunable_watch = {};
+  }
+
+  const id =
+    targetId(target);
+
+  const previous =
+    state.tunable_watch[id] || null;
+
+  const currentValues = {};
+
+  let hasBgskChange =
+    false;
+
+  for (
+    const key of BGSK_WATCH_KEYS
+  ) {
+    const hasCurrent =
+      Object.prototype.hasOwnProperty.call(
+        tunables,
+        key
+      );
+
+    const currentValue =
+      hasCurrent
+        ? tunables[key]
+        : null;
+
+    currentValues[key] =
+      currentValue;
+
+    if (!previous) {
+      continue;
+    }
+
+    const hasPrevious =
+      previous.values &&
+      Object.prototype.hasOwnProperty.call(
+        previous.values,
+        key
+      );
+
+    if (!hasPrevious) {
+      hasBgskChange = true;
+      continue;
+    }
+
+    if (
+      !Object.is(
+        currentValue,
+        previous.values[key]
+      )
+    ) {
+      hasBgskChange = true;
+    }
+  }
+
+  /*
+   * First observation:
+   *
+   * Create the baseline silently.
+   */
+  if (!previous) {
+    state.tunable_watch[id] = {
+      values:
+        Object.fromEntries(
+          BGSK_WATCH_KEYS.map(
+            key => [
+              key,
+              currentValues[key]
+            ]
+          )
+        ),
+
+      tunable_version:
+        getTunableVersion(
+          tunables
+        ),
+
+      last_modified:
+        metadata?.last_modified ||
+        null
+    };
+
+    console.log(
+      `[TUNABLE WATCH] ${id}: baseline initialized`
+    );
+
+    return null;
+  }
+
+  /*
+   * No BGSK value changed.
+   *
+   * IMPORTANT:
+   * Do not update tunable_version or
+   * last_modified here.
+   */
+  if (!hasBgskChange) {
+    return null;
+  }
+
+  const previousValues =
+    {};
+
+  const nextValues =
+    {};
+
+  for (
+    const key of BGSK_WATCH_KEYS
+  ) {
+    const hasPrevious =
+      previous.values &&
+      Object.prototype.hasOwnProperty.call(
+        previous.values,
+        key
+      );
+
+    previousValues[key] =
+      hasPrevious
+        ? previous.values[key]
+        : null;
+
+    nextValues[key] =
+      currentValues[key];
+  }
+
+  const currentTunableVersion =
+    getTunableVersion(
+      tunables
+    );
+
+  const currentLastModified =
+    metadata?.last_modified ||
+    null;
+
+  const result = {
+    changed:
+      true,
+
+    values:
+      nextValues,
+
+    previous_values:
+      previousValues,
+
+    tunable_version:
+      currentTunableVersion,
+
+    previous_tunable_version:
+      previous.tunable_version ??
+      null,
+
+    last_modified:
+      currentLastModified,
+
+    previous_last_modified:
+      previous.last_modified ??
+      null
+  };
+
+  /*
+   * Only now do we update the BGSK
+   * snapshot metadata.
+   */
+  state.tunable_watch[id] = {
+    values:
+      nextValues,
+
+    tunable_version:
+      currentTunableVersion,
+
+    last_modified:
+      currentLastModified
+  };
+
+  console.log(
+    `[TUNABLE WATCH] ${id}: BGSK values changed`
+  );
+
+  return result;
 }
 
 async function processTarget(
@@ -623,17 +867,12 @@ async function processTarget(
 
   /*
    * Hash the encrypted payload immediately.
-   *
-   * This is the first change-detection layer.
-   * If the encrypted file is byte-for-byte identical
-   * to the previous run, there is no reason to decrypt,
-   * normalize, resolve or diff it again.
    */
   const encryptedHash =
     sha256(body);
 
   /*
-   * Save the encrypted payload as before.
+   * Save the encrypted payload.
    */
   if (
     config.features?.save_encrypted !== false
@@ -647,10 +886,8 @@ async function processTarget(
   /*
    * Fast path:
    *
-   * If we already have an encrypted hash and it is
-   * identical, the source payload has not changed.
-   *
-   * Update only the monitoring metadata and return.
+   * If the encrypted payload did not change,
+   * the tunables cannot have changed either.
    */
   if (
     previous.last_encrypted_hash &&
@@ -706,9 +943,8 @@ async function processTarget(
   );
 
   /*
-   * The encrypted payload changed.
+   * Encrypted payload changed.
    *
-   * Only now do the expensive processing:
    * decrypt -> normalize -> resolver -> diff.
    */
 
@@ -815,6 +1051,42 @@ async function processTarget(
     resolved
   );
 
+  /*
+   * The watcher deliberately reads the finalized
+   * current file, after resolver + custom dictionary.
+   */
+  const currentData =
+    readJson(
+      currentPath(target)
+    );
+
+  metadata.detected_at =
+    nowIso();
+
+  metadata.previous_content_length =
+    previous.last_content_length ??
+    metadata.content_length;
+
+  metadata.previous_last_modified =
+    previous.last_modified ||
+    null;
+
+  metadata.encrypted_hash =
+    encryptedHash;
+
+  metadata.previous_encrypted_hash =
+    previous.last_encrypted_hash ||
+    null;
+
+  const tunableWatch =
+    updateTunableWatch(
+      state,
+      target,
+      currentData,
+      metadata,
+      config.tunable_watch?.enabled === true
+    );
+
   if (
     config.features?.save_history !== false &&
     hasChanged
@@ -891,24 +1163,6 @@ async function processTarget(
       );
   }
 
-  metadata.detected_at =
-    nowIso();
-
-  metadata.previous_content_length =
-    previous.last_content_length ??
-    metadata.content_length;
-
-  metadata.previous_last_modified =
-    previous.last_modified ||
-    null;
-
-  metadata.encrypted_hash =
-    encryptedHash;
-
-  metadata.previous_encrypted_hash =
-    previous.last_encrypted_hash ||
-    null;
-
   state.targets[id] = {
     ...previous,
 
@@ -932,17 +1186,9 @@ async function processTarget(
     last_content_length:
       metadata.content_length,
 
-    /*
-     * Hash of the encrypted source payload.
-     * This is now the first-level change detector.
-     */
     last_encrypted_hash:
       encryptedHash,
 
-    /*
-     * Hash of the resolved/decrypted data.
-     * Kept for secondary verification and compatibility.
-     */
     last_hash:
       dataHash,
 
@@ -976,6 +1222,8 @@ async function processTarget(
     metadata,
 
     changes,
+
+    tunableWatch,
 
     currentUrl:
       repositoryFileUrl(
