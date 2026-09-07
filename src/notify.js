@@ -34,6 +34,7 @@ const pendingPath =
   path.join(
     ROOT,
     'data',
+    'state',
     'pending-notifications.json'
   );
 
