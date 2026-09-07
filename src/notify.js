@@ -38,7 +38,7 @@ const pendingPath =
     'pending-notifications.json'
   );
 
-function main() {
+async function main() {
   const config =
     loadConfig();
 
@@ -226,7 +226,6 @@ function main() {
     /*
      * BGSK Tunable Watch
      *
-     * IMPORTANT:
      * The BGSK snapshot is stored on
      * event.tunableWatch, not event.metadata.
      */
