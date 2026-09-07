@@ -1,0 +1,32 @@
+{
+  "generated_at": "2026-09-07T00:33:24.965Z",
+  "target": "gta5/pcrosalt",
+  "source": "http://prod.cloud.rockstargames.com/titles/gta5/pcrosalt/0x1a098062.json",
+  "metadata": {
+    "status": 200,
+    "ok": true,
+    "lastModified": "Thu, 03 Sep 2026 08:44:02 GMT",
+    "etag": "\"639240218420000000\"",
+    "contentLength": 20,
+    "headers": {
+      "cache-control": "public, max-age=900",
+      "connection": "keep-alive",
+      "content-encoding": "gzip",
+      "content-length": "27972",
+      "content-type": "application/json",
+      "date": "Mon, 07 Sep 2026 00:33:16 GMT",
+      "etag": "\"639240218420000000\"",
+      "last-modified": "Thu, 03 Sep 2026 08:44:02 GMT",
+      "vary": "Accept-Encoding",
+      "x-content-type-options": "nosniff"
+    },
+    "last_modified": "Thu, 03 Sep 2026 08:44:02 GMT",
+    "content_length": 27972,
+    "detected_at": "2026-09-07T00:33:24.964Z",
+    "previous_content_length": 27972,
+    "previous_last_modified": null,
+    "encrypted_hash": "ffb6e6a4466bbff13e967c4eea09d168e013a77ea3c4e56b50e11c8aed0ba63a",
+    "previous_encrypted_hash": null
+  },
+  "changes": []
+}
