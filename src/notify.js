@@ -14,6 +14,7 @@ const {
   formatBackgroundNewBuild,
   formatBackgroundFirstSeen,
   formatBackgroundUpdated,
+  formatTunableWatchUpdated,
   formatNewswireArticle
 } = require('./lib/discord');
 
@@ -240,10 +241,6 @@ async function main() {
   for (
     const event of events
   ) {
-    /*
-     * Notifications created by different modules may use
-     * either "event" or "type".
-     */
     const eventType =
       event?.event ||
       event?.type;
@@ -339,6 +336,51 @@ async function main() {
 
           detectedAt:
             event.metadata.detected_at
+        });
+    }
+
+    /*
+     * BGSK tunable watch
+     */
+    else if (
+      eventType ===
+      'tunable_watch_updated'
+    ) {
+      content =
+        formatTunableWatchUpdated({
+          title:
+            event.target.title,
+
+          platform:
+            event.target.platform,
+
+          values:
+            event.metadata
+              .values,
+
+          previousValues:
+            event.metadata
+              .previous_values,
+
+          tunableVersion:
+            event.metadata
+              .tunable_version,
+
+          previousTunableVersion:
+            event.metadata
+              .previous_tunable_version,
+
+          lastModified:
+            event.metadata
+              .last_modified,
+
+          previousLastModified:
+            event.metadata
+              .previous_last_modified,
+
+          detectedAt:
+            event.metadata
+              .detected_at
         });
     }
 
@@ -439,9 +481,6 @@ async function main() {
 
     /*
      * Rockstar Newswire new article
-     *
-     * Newswire currently writes:
-     * type: "newswire_new_post"
      */
     else if (
       eventType ===
