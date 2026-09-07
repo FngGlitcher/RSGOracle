@@ -741,6 +741,59 @@ function formatBackgroundUpdated({
     .join('\n');
 }
 
+function formatTunableWatchUpdated({
+  title,
+  platform,
+  values,
+  previousValues,
+  tunableVersion,
+  previousTunableVersion,
+  lastModified,
+  previousLastModified,
+  detectedAt
+}) {
+  const displayPlatform =
+    getPlatformDisplayName(
+      title,
+      platform
+    );
+
+  const lines = [
+    `**${displayPlatform} BGSK Update detected at ${formatDetectionTime(detectedAt)}**`
+  ];
+
+  const keys = [
+    'EXPECTEDBGSNUMBERBGSK',
+    'POSIXTIMEBGSK',
+    'DISABLEBGMINVERSION',
+    'EXPECTEDBGMINVERSION',
+    'POSIXTIMEBGMIN'
+  ];
+
+  for (
+    const key of keys
+  ) {
+    const currentValue =
+      values?.[key];
+
+    const previousValue =
+      previousValues?.[key];
+
+    lines.push(
+      `"${key}": ${String(currentValue)} (prev: ${String(previousValue)})`
+    );
+  }
+
+  lines.push(
+    `TUNABLE_VERSION: ${String(tunableVersion)}` +
+      ` (prev: ${String(previousTunableVersion)})`,
+    `Last modified: ${lastModified || 'unknown'}`,
+    `Previous change: ${previousLastModified || 'unknown'}`
+  );
+
+  return lines.join('\n');
+}
+
 function formatNewswireArticle({
   title,
   url,
@@ -753,15 +806,6 @@ function formatNewswireArticle({
       title || 'Unknown article'
     );
 
-  /*
-   * Some previously generated notifications can contain
-   * a Markdown link title after the URL:
-   *
-   * [Title](https://example.com "Title")
-   *
-   * Discord interprets the quoted part as a Markdown
-   * link title. We only want the clean URL.
-   */
   const safeUrl =
     String(
       url || ''
@@ -801,5 +845,6 @@ module.exports = {
   formatBackgroundNewBuild,
   formatBackgroundFirstSeen,
   formatBackgroundUpdated,
+  formatTunableWatchUpdated,
   formatNewswireArticle
 };
