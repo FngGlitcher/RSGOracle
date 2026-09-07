@@ -64,6 +64,9 @@ async function main() {
           state
         );
 
+      /*
+       * Normal Tunables notification
+       */
       if (
         ![
           'unchanged',
@@ -95,22 +98,49 @@ async function main() {
             event.changelogUrl ||
             null
         });
-
-        console.log(
-          `${target.title}/${target.platform}: ${event.event}`
-        );
-      } else {
-        if (
-          event.event ===
-          'recovery_wait'
-        ) {
-          stateDirty = true;
-        }
-
-        console.log(
-          `${target.title}/${target.platform}: ${event.event}`
-        );
       }
+
+      /*
+       * BGSK Tunable Watch
+       *
+       * This is a separate notification from the
+       * normal Tunables update notification.
+       *
+       * The processor only returns tunableWatch.changed
+       * when one of the watched BGSK values changed.
+       */
+      if (
+        event.tunableWatch?.changed
+      ) {
+        stateDirty = true;
+
+        notifications.push({
+          event:
+            'tunable_watch_updated',
+
+          target:
+            event.target,
+
+          metadata:
+            event.metadata,
+
+          tunableWatch:
+            event.tunableWatch
+        });
+
+        console.log(
+          `${target.title}/${target.platform}: BGSK tunable watch updated`
+        );
+      } else if (
+        event.event ===
+        'recovery_wait'
+      ) {
+        stateDirty = true;
+      }
+
+      console.log(
+        `${target.title}/${target.platform}: ${event.event}`
+      );
     } catch (error) {
       console.error(
         `${target.title}/${target.platform}: ERROR: ${error.message}`
