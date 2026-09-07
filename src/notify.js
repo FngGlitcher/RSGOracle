@@ -20,9 +20,8 @@ const {
   formatNewswireArticle
 } = require('./lib/discord');
 
-const {
-  readJson
-} = require('./lib/utils');
+const fs =
+  require('fs');
 
 const path =
   require('path');
@@ -46,7 +45,7 @@ async function main() {
     loadState();
 
   if (
-    !require('fs').existsSync(
+    !fs.existsSync(
       pendingPath
     )
   ) {
@@ -58,8 +57,11 @@ async function main() {
   }
 
   const pending =
-    readJson(
-      pendingPath
+    JSON.parse(
+      fs.readFileSync(
+        pendingPath,
+        'utf8'
+      )
     );
 
   if (
@@ -321,7 +323,7 @@ async function main() {
   /*
    * Notifications were processed.
    */
-  require('fs').unlinkSync(
+  fs.unlinkSync(
     pendingPath
   );
 
